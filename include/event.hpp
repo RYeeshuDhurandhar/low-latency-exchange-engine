@@ -1,9 +1,11 @@
 #pragma once
 
+#include <string>
+
 #include "types.hpp"
 
 struct Event {
-    EventType type;
+    EventType type = EventType::Unknown;
 
     // Used for single-order events:
     // Accepted, Cancelled, Modified, Rejected, Rested/AddedToBook
