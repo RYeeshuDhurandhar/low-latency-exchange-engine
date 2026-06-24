@@ -7,6 +7,7 @@ using SymbolId = uint32_t;
 using Price = uint64_t;
 using Quantity = uint32_t;
 using SequenceNumber = uint64_t;
+using ReasonCode = uint8_t;
 
 enum class Side: uint8_t {
     Unknown = 0,
