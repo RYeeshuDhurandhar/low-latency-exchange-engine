@@ -20,4 +20,6 @@ struct Event {
     SymbolId symbol_id = 0;
     Price price = 0;
     Quantity quantity = 0;
+    
+    ReasonCode reason_code = ReasonCode::None;
 };

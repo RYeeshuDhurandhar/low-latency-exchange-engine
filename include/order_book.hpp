@@ -58,7 +58,8 @@ class OrderBook {
         SequenceNumber next_sequence_number_ = 1;
 
     private:
-        static bool is_valid_new_order_request(const OrderRequest& req, ReasonCode reason_code);
+        static bool is_valid_new_order_request(const OrderRequest& req, ReasonCode& reason_code);
+        static bool is_valid_modify_order_request(const OrderRequest& req, ReasonCode& reason_code);
 
         std::vector<Event> handle_new_order(const OrderRequest& req);
         std::vector<Event> handle_cancel_order(OrderId order_id);
