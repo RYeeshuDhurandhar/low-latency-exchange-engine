@@ -4,31 +4,24 @@
 #include <iterator>
 
 std::vector<Event> OrderBook::submit(const OrderRequest& req) {
-    switch (req.message_type) {
-        case MessageType::New:
-            return handle_new_order(req);
+    return std::visit(
+        [this](const auto& actual_req) {
+            return submit(actual_req);
+        },
+        req
+    );
+}
 
-        case MessageType::Cancel:
-            return handle_cancel_order(req.order_id);
+std::vector<Event> OrderBook::submit(const NewOrderRequest& req) {
+    return handle_new_order(req);
+}
 
-        case MessageType::Modify:
-            return handle_modify_order(req);
-        
-        default:
-            std::vector<Event> events;
-            events.push_back(
-                Event{
-                    .type = EventType::OrderRejected,
-                    .aggressive_order_id = req.order_id,
-                    .symbol_id = req.symbol_id,
-                    .price = req.price,
-                    .quantity = req.quantity,
-                    .reason_code = ReasonCode::InvalidMessageType,
-                }
-            );
-    }
+std::vector<Event> OrderBook::submit(const ModifyOrderRequest& req) {
+    return handle_modify_order(req);
+}
 
-    return {};
+std::vector<Event> OrderBook::submit(const CancelOrderRequest& req) {
+    return handle_cancel_order(req);
 }
 
 std::optional<Price> OrderBook::best_bid() const {
@@ -67,13 +60,8 @@ bool OrderBook::contains_order(OrderId order_id) const {
     return order_lookup_.find(order_id) != order_lookup_.end();
 }
 
-bool OrderBook::is_valid_new_order_request(const OrderRequest& req, ReasonCode& reason_code) {
+bool OrderBook::is_valid_new_order_request(const NewOrderRequest& req, ReasonCode& reason_code) {
     reason_code = ReasonCode::None;
-
-    if(req.message_type == MessageType::Unknown) {
-        reason_code = ReasonCode::UnknownMessageType;
-        return false;
-    }
 
     if(req.order_type == OrderType::Unknown) {
         reason_code = ReasonCode::UnknownOrderType;
@@ -111,22 +99,17 @@ bool OrderBook::is_valid_new_order_request(const OrderRequest& req, ReasonCode& 
 /*
  * In modify order, req contains:
  *      - message_type
+ *      - order_type
  *      - order_id
  *      - quantity
- *      - order_type
  *      - price (only if limit order, else no need)
  * 
  * This function does not check since modify does not change these:
  *      - side
  *      - symbol_id
 */
-bool OrderBook::is_valid_modify_order_request(const OrderRequest& req, ReasonCode& reason_code) {
+bool OrderBook::is_valid_modify_order_request(const ModifyOrderRequest& req, ReasonCode& reason_code) {
     reason_code = ReasonCode::None;
-
-    if(req.message_type != MessageType::Modify) {
-        reason_code = ReasonCode::NotAModifyOrder;
-        return false;
-    }
 
     if(req.order_type == OrderType::Unknown) {
         reason_code = ReasonCode::UnknownOrderType;
@@ -151,18 +134,32 @@ bool OrderBook::is_valid_modify_order_request(const OrderRequest& req, ReasonCod
     return true;
 }
 
-std::vector<Event> OrderBook::handle_new_order(const OrderRequest& req) {
+static bool is_valid_cancel_order_request(const CancelOrderRequest& req, ReasonCode& reason_code) {
+    reason_code = ReasonCode::None;
+
+    if(req.order_id == 0) {
+        reason_code = ReasonCode::InvalidOrderId;
+        return false;
+    }
+
+    return true;
+}
+
+std::vector<Event> OrderBook::handle_new_order(const NewOrderRequest& req) {
     std::vector<Event> events;
 
     ReasonCode reason_code;
     if(!is_valid_new_order_request(req, reason_code)) {
         events.push_back(
             Event{
-                .type = EventType::OrderRejected,
+                .event_type = EventType::OrderRejected,
+                .request_type = RequestType::New,
                 .order_id = req.order_id,
+                .order_type = req.order_type,
                 .symbol_id = req.symbol_id,
-                .price = req.price,
+                .side = req.side,
                 .quantity = req.quantity,
+                .price = req.price,
                 .reason_code = reason_code,
             }
         );
@@ -173,11 +170,14 @@ std::vector<Event> OrderBook::handle_new_order(const OrderRequest& req) {
     if(contains_order(req.order_id)) {
         events.push_back(
             Event{
-                .type = EventType::OrderRejected,
+                .event_type = EventType::OrderRejected,
+                .request_type = RequestType::New,
                 .order_id = req.order_id,
+                .order_type = req.order_type,
                 .symbol_id = req.symbol_id,
-                .price = req.price,
+                .side = req.side,
                 .quantity = req.quantity,
+                .price = req.price,
                 .reason_code = ReasonCode::DuplicateActiveOrderId,
             }
         );
@@ -198,11 +198,14 @@ std::vector<Event> OrderBook::handle_new_order(const OrderRequest& req) {
 
     events.push_back(
         Event{
-            .type = EventType::OrderAccepted,
+            .event_type = EventType::OrderAccepted,
+            .request_type = RequestType::New,
             .order_id = incoming.order_id,
+            .order_type = req.order_type,
             .symbol_id = incoming.symbol_id,
-            .price = incoming.price,
+            .side = incoming.side,
             .quantity = incoming.original_quantity,
+            .price = incoming.price,
         }
     );
 
@@ -220,9 +223,12 @@ std::vector<Event> OrderBook::handle_new_order(const OrderRequest& req) {
         } else {
             events.push_back(
                 Event{
-                    .type = EventType::UnfilledMarketOrderCancelled,
+                    .event_type = EventType::UnfilledMarketOrderCancelled,
+                    .request_type = RequestType::New,
                     .aggressive_order_id = incoming.order_id,
+                    .order_type = req.order_type,
                     .symbol_id = incoming.symbol_id,
+                    .side = incoming.side,
                     .quantity = incoming.remaining_quantity,
                     .price = incoming.price,
                 }
@@ -255,12 +261,15 @@ void OrderBook::match_buy(Order& incoming, std::vector<Event>& events, bool is_m
 
             events.push_back(
                 Event{
-                    .type = EventType::Trade,
+                    .event_type = EventType::Trade,
+                    .request_type = RequestType::New,
                     .resting_order_id = resting.order_id,
                     .aggressive_order_id = incoming.order_id,
+                    .order_type = (is_market)? OrderType::Market : OrderType::Limit,
                     .symbol_id = resting.symbol_id,
-                    .price = resting.price,
+                    .side = incoming.side,
                     .quantity = trade_qty,
+                    .price = resting.price,
                 }
             );
 
@@ -297,13 +306,16 @@ void OrderBook::match_sell(Order& incoming, std::vector<Event>& events, bool is_
 
             events.push_back(
                 Event{
-                    .type = EventType::Trade,
+                    .event_type = EventType::Trade,
+                    .request_type = RequestType::New,
                     .order_id = incoming.order_id,
                     .resting_order_id = resting.order_id,
                     .aggressive_order_id = incoming.order_id,
+                    .order_type = (is_market) ? OrderType::Market : OrderType::Limit,
                     .symbol_id = resting.symbol_id,
-                    .price = resting.price,
+                    .side = incoming.side,
                     .quantity = trade_qty,
+                    .price = resting.price,
                 }
             );
 
@@ -336,9 +348,12 @@ void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
 
         events.push_back(
             Event{
-                .type = EventType::OrderRested,
+                .event_type = EventType::OrderRested,
+                .request_type = RequestType::New,
                 .order_id = it->order_id,
+                .order_type = OrderType::Limit,
                 .symbol_id = it->symbol_id,
+                .side = it->side,
                 .price = it->price,
                 .quantity = it->remaining_quantity,
             }
@@ -359,25 +374,57 @@ void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
 
         events.push_back(
             Event{
-                .type = EventType::OrderRested,
+                .event_type = EventType::OrderRested,
+                .request_type = RequestType::New,
                 .order_id = it->order_id,
+                .order_type = OrderType::Limit,
                 .symbol_id = it->symbol_id,
-                .price = it->price,
+                .side = it->side,
                 .quantity = it->remaining_quantity,
+                .price = it->price,
             }
         );
     }
 }
 
-std::vector<Event> OrderBook::handle_cancel_order(OrderId order_id) {
+std::vector<Event> OrderBook::handle_cancel_order(const CancelOrderRequest& req) {
     std::vector<Event> events;
     Order removed_order;
+    ReasonCode reason_code;
 
-    if(!remove_order(order_id, &removed_order)) {
+    if(!is_valid_cancel_order_request(req, reason_code)) {
         events.push_back(
             Event{
-                .type = EventType::OrderNotFound,
-                .order_id = order_id,
+                .event_type = EventType::OrderRejected,
+                .request_type = RequestType::Cancel,
+                .order_id = req.order_id,
+                .reason_code = reason_code,
+            }
+        );
+
+        return events;
+    }
+
+    if(!contains_order(req.order_id)) {
+        events.push_back(
+            Event{
+                .event_type = EventType::OrderRejected,
+                .request_type = RequestType::Cancel,
+                .order_id = req.order_id,
+                .reason_code = ReasonCode::OrderIdNotFound,
+            }
+        );
+
+        return events;
+    }
+
+    if(!remove_order(req.order_id, reason_code, &removed_order)) {
+        events.push_back(
+            Event{
+                .event_type = EventType::OrderRejected,
+                .request_type = RequestType::Cancel,
+                .order_id = req.order_id,
+                .reason_code = reason_code,
             }
         );
 
@@ -386,18 +433,21 @@ std::vector<Event> OrderBook::handle_cancel_order(OrderId order_id) {
 
     events.push_back(
         Event{
-            .type = EventType::OrderCancelled,
+            .event_type = EventType::OrderCancelled,
+            .request_type = RequestType::Cancel,
             .order_id = removed_order.order_id,
+            .order_type = OrderType::Limit,
             .symbol_id = removed_order.symbol_id,
-            .price = removed_order.price,
+            .side = removed_order.side,
             .quantity = removed_order.remaining_quantity,
+            .price = removed_order.price,
         }
     );
 
     return events;
 }
 
-std::vector<Event> OrderBook::handle_modify_order(const OrderRequest& req) {
+std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req) {
     std::vector<Event> events;
 
     ReasonCode reason_code;
@@ -405,11 +455,12 @@ std::vector<Event> OrderBook::handle_modify_order(const OrderRequest& req) {
     if(!contains_order(req.order_id)) {
         events.push_back(
             Event{
-                .type = EventType::OrderRejected,
+                .event_type = EventType::OrderRejected,
+                .request_type = RequestType::Modify,
                 .order_id = req.order_id,
-                .symbol_id = req.symbol_id,
-                .price = req.price,
+                .order_type = req.order_type,
                 .quantity = req.quantity,
+                .price = req.price,
                 .reason_code = ReasonCode::OrderIdNotFound,
             }
         );
@@ -420,11 +471,12 @@ std::vector<Event> OrderBook::handle_modify_order(const OrderRequest& req) {
     if(!is_valid_modify_order_request(req, reason_code)) {
         events.push_back(
             Event{
-                .type = EventType::OrderRejected,
+                .event_type = EventType::OrderRejected,
+                .request_type = RequestType::Modify,
                 .order_id = req.order_id,
-                .symbol_id = req.symbol_id,
-                .price = req.price,
+                .order_type = req.order_type,
                 .quantity = req.quantity,
+                .price = req.price,
                 .reason_code = reason_code,
             }
         );
@@ -436,11 +488,14 @@ std::vector<Event> OrderBook::handle_modify_order(const OrderRequest& req) {
     auto lookup_it = order_lookup_.find(req.order_id);
     Order older_order = *(lookup_it->second.it);
 
-    std::vector<Event> events_cancel = handle_cancel_order(req.order_id);
+    CancelOrderRequest cancel_req = CancelOrderRequest{
+        .order_id = req.order_id,
+    };
+    
+    std::vector<Event> events_cancel = handle_cancel_order(cancel_req);
     events.insert(events.end(), events_cancel.begin(), events_cancel.end());
 
-    OrderRequest new_req = OrderRequest{
-        .message_type = MessageType::New,
+    NewOrderRequest new_req = NewOrderRequest{
         .order_type = req.order_type,
         .order_id = req.order_id,
 
@@ -460,17 +515,17 @@ std::vector<Event> OrderBook::handle_modify_order(const OrderRequest& req) {
 
 }
 
-bool OrderBook::remove_order(OrderId order_id, Order* removed_order) {
+bool OrderBook::remove_order(OrderId order_id, ReasonCode& reason_code, Order* removed_order) {
     auto lookup_it = order_lookup_.find(order_id);
-    if(lookup_it == order_lookup_.end()) {
-        return false;
-    }
 
     OrderLocation order_location = lookup_it->second;
 
     if(order_location.side == Side::Buy) {
         auto level_it = bids_.find(order_location.price);
-        if(level_it == bids_.end()) return false;
+        if(level_it == bids_.end()) {
+            reason_code = ReasonCode::OrderNotFound;
+            return false;
+        }
 
         PriceLevel* price_level = &level_it->second;
         
@@ -485,7 +540,10 @@ bool OrderBook::remove_order(OrderId order_id, Order* removed_order) {
         }
     } else {
         auto level_it = asks_.find(order_location.price);
-        if(level_it == asks_.end()) return false;
+        if(level_it == asks_.end()) {
+            reason_code = ReasonCode::OrderNotFound;
+            return false;
+        }
 
         PriceLevel* price_level = &level_it->second;
         

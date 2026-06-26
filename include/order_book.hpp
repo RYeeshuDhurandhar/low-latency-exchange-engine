@@ -22,6 +22,9 @@ class OrderBook {
         OrderBook& operator = (const OrderBook&) = delete;
 
         std::vector<Event> submit(const OrderRequest& req);
+        std::vector<Event> submit(const NewOrderRequest& req);
+        std::vector<Event> submit(const ModifyOrderRequest& req);
+        std::vector<Event> submit(const CancelOrderRequest& req);
 
         // Can not modify OrderBook object, i.e., data structures of this class (asks_, bids_, order_lookup_, next_sequence_number_) 
         std::optional<Price> best_bid() const;
@@ -58,15 +61,16 @@ class OrderBook {
         SequenceNumber next_sequence_number_ = 1;
 
     private:
-        static bool is_valid_new_order_request(const OrderRequest& req, ReasonCode& reason_code);
-        static bool is_valid_modify_order_request(const OrderRequest& req, ReasonCode& reason_code);
+        static bool is_valid_new_order_request(const NewOrderRequest& req, ReasonCode& reason_code);
+        static bool is_valid_modify_order_request(const ModifyOrderRequest& req, ReasonCode& reason_code);
+        static bool is_valid_cancel_order_request(const CancelOrderRequest& req, ReasonCode& reason_code);
 
-        std::vector<Event> handle_new_order(const OrderRequest& req);
-        std::vector<Event> handle_cancel_order(OrderId order_id);
-        std::vector<Event> handle_modify_order(const OrderRequest& req);
+        std::vector<Event> handle_new_order(const NewOrderRequest& req);
+        std::vector<Event> handle_modify_order(const ModifyOrderRequest& req);
+        std::vector<Event> handle_cancel_order(const CancelOrderRequest& req);
         // Use pointer instead of reference since reference can't be null
         // removed_order: optional, needed for modify order, does not need for cancel order
-        bool remove_order(OrderId order_id, Order* removed_order = nullptr);
+        bool remove_order(OrderId order_id, ReasonCode& reason_code, Order* removed_order = nullptr);
 
         void match_buy(Order& incoming, std::vector<Event>& events, bool is_market);
         void match_sell(Order& incoming, std::vector<Event>& events, bool is_market);

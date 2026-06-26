@@ -20,13 +20,6 @@ enum class OrderType: uint8_t {
     Market
 };
 
-enum class MessageType: uint8_t {
-    Unknown = 0,
-    New,
-    Cancel,
-    Modify
-};
-
 enum class OrderStatus: uint8_t {
     Unknown = 0,
     New,
@@ -45,14 +38,19 @@ enum class EventType: uint8_t {
     OrderModified,                  // modify request accepted
     OrderRested,                    // remaining limit order inserted into book
     UnfilledMarketOrderCancelled,   // remaining market order cancelled
-    OrderNotFound,
     Trade,                          // two orders matched
     BookUpdated                     // price level / best bid / best ask changed
 };
 
+enum class RequestType: uint8_t {
+    Unknown,
+    New,
+    Modify,
+    Cancel
+};
+
 enum class ReasonCode: uint8_t {
     None = 0,
-    UnknownMessageType = 1,
     UnknownOrderType = 2,
     UnknownSide = 3,
     InvalidOrderId = 4,
@@ -60,7 +58,7 @@ enum class ReasonCode: uint8_t {
     InvalidLimitPrice = 6,
     InvalidQuantity = 7,
     DuplicateActiveOrderId = 8,
-    OrderIdNotFound = 9,
-    InvalidMessageType = 10,
+    OrderNotFound = 9,
+    OrderIdNotFound = 10,
     NotAModifyOrder = 11,
 };
