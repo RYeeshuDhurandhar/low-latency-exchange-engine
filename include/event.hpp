@@ -25,5 +25,5 @@ struct Event {
     Quantity quantity = 0;
     Price price = 0;
     
-    ReasonCode reason_code = ReasonCode::None;
+    Reason reason = Reason::None;
 };

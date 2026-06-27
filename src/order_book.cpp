@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <iostream>
 
 std::vector<Event> OrderBook::submit(const OrderRequest& req) {
     return std::visit(
@@ -60,36 +61,36 @@ bool OrderBook::contains_order(OrderId order_id) const {
     return order_lookup_.find(order_id) != order_lookup_.end();
 }
 
-bool OrderBook::is_valid_new_order_request(const NewOrderRequest& req, ReasonCode& reason_code) {
-    reason_code = ReasonCode::None;
+bool OrderBook::is_valid_new_order_request(const NewOrderRequest& req, Reason& reason) {
+    reason = Reason::None;
 
     if(req.order_type == OrderType::Unknown) {
-        reason_code = ReasonCode::UnknownOrderType;
+        reason = Reason::UnknownOrderType;
         return false;
     }
 
     if(req.order_id == 0) {
-        reason_code = ReasonCode::InvalidOrderId;
+        reason = Reason::InvalidOrderId;
         return false;
     }
 
     if(req.symbol_id == 0) {
-        reason_code = ReasonCode::InvalidSymbolId;
+        reason = Reason::InvalidSymbolId;
         return false;
     }
 
     if(req.side == Side::Unknown) {
-        reason_code = ReasonCode::UnknownSide;
+        reason = Reason::UnknownSide;
         return false;
     }
 
     if(req.order_type == OrderType::Limit && req.price == 0) {
-        reason_code = ReasonCode::InvalidLimitPrice;
+        reason = Reason::InvalidLimitPrice;
         return false;
     }
 
     if(req.quantity == 0) {
-        reason_code = ReasonCode::InvalidQuantity;
+        reason = Reason::InvalidQuantity;
         return false;
     }
 
@@ -108,37 +109,37 @@ bool OrderBook::is_valid_new_order_request(const NewOrderRequest& req, ReasonCod
  *      - side
  *      - symbol_id
 */
-bool OrderBook::is_valid_modify_order_request(const ModifyOrderRequest& req, ReasonCode& reason_code) {
-    reason_code = ReasonCode::None;
+bool OrderBook::is_valid_modify_order_request(const ModifyOrderRequest& req, Reason& reason) {
+    reason = Reason::None;
 
     if(req.order_type == OrderType::Unknown) {
-        reason_code = ReasonCode::UnknownOrderType;
+        reason = Reason::UnknownOrderType;
         return false;
     }
 
     if(req.order_id == 0) {
-        reason_code = ReasonCode::InvalidOrderId;
+        reason = Reason::InvalidOrderId;
         return false;
     }
 
     if(req.order_type == OrderType::Limit && req.price == 0) {
-        reason_code = ReasonCode::InvalidLimitPrice;
+        reason = Reason::InvalidLimitPrice;
         return false;
     }
 
     if(req.quantity == 0) {
-        reason_code = ReasonCode::InvalidQuantity;
+        reason = Reason::InvalidQuantity;
         return false;
     }
 
     return true;
 }
 
-static bool is_valid_cancel_order_request(const CancelOrderRequest& req, ReasonCode& reason_code) {
-    reason_code = ReasonCode::None;
+bool OrderBook::is_valid_cancel_order_request(const CancelOrderRequest& req, Reason& reason) {
+    reason = Reason::None;
 
     if(req.order_id == 0) {
-        reason_code = ReasonCode::InvalidOrderId;
+        reason = Reason::InvalidOrderId;
         return false;
     }
 
@@ -148,8 +149,8 @@ static bool is_valid_cancel_order_request(const CancelOrderRequest& req, ReasonC
 std::vector<Event> OrderBook::handle_new_order(const NewOrderRequest& req) {
     std::vector<Event> events;
 
-    ReasonCode reason_code;
-    if(!is_valid_new_order_request(req, reason_code)) {
+    Reason reason;
+    if(!is_valid_new_order_request(req, reason)) {
         events.push_back(
             Event{
                 .event_type = EventType::OrderRejected,
@@ -160,7 +161,7 @@ std::vector<Event> OrderBook::handle_new_order(const NewOrderRequest& req) {
                 .side = req.side,
                 .quantity = req.quantity,
                 .price = req.price,
-                .reason_code = reason_code,
+                .reason = reason,
             }
         );
 
@@ -178,7 +179,7 @@ std::vector<Event> OrderBook::handle_new_order(const NewOrderRequest& req) {
                 .side = req.side,
                 .quantity = req.quantity,
                 .price = req.price,
-                .reason_code = ReasonCode::DuplicateActiveOrderId,
+                .reason = Reason::DuplicateActiveOrderId,
             }
         );
 
@@ -308,7 +309,6 @@ void OrderBook::match_sell(Order& incoming, std::vector<Event>& events, bool is_
                 Event{
                     .event_type = EventType::Trade,
                     .request_type = RequestType::New,
-                    .order_id = incoming.order_id,
                     .resting_order_id = resting.order_id,
                     .aggressive_order_id = incoming.order_id,
                     .order_type = (is_market) ? OrderType::Market : OrderType::Limit,
@@ -322,6 +322,8 @@ void OrderBook::match_sell(Order& incoming, std::vector<Event>& events, bool is_
             if(resting.remaining_quantity == 0) {
                 order_lookup_.erase(resting.order_id);
                 price_level.orders.pop_front();
+            } else {
+                resting.order_status = OrderStatus::PartiallyFilled;
             }
         }
 
@@ -354,8 +356,8 @@ void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
                 .order_type = OrderType::Limit,
                 .symbol_id = it->symbol_id,
                 .side = it->side,
-                .price = it->price,
                 .quantity = it->remaining_quantity,
+                .price = it->price,
             }
         );
     } else {
@@ -390,15 +392,15 @@ void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
 std::vector<Event> OrderBook::handle_cancel_order(const CancelOrderRequest& req) {
     std::vector<Event> events;
     Order removed_order;
-    ReasonCode reason_code;
+    Reason reason;
 
-    if(!is_valid_cancel_order_request(req, reason_code)) {
+    if(!is_valid_cancel_order_request(req, reason)) {
         events.push_back(
             Event{
                 .event_type = EventType::OrderRejected,
                 .request_type = RequestType::Cancel,
                 .order_id = req.order_id,
-                .reason_code = reason_code,
+                .reason = reason,
             }
         );
 
@@ -411,20 +413,20 @@ std::vector<Event> OrderBook::handle_cancel_order(const CancelOrderRequest& req)
                 .event_type = EventType::OrderRejected,
                 .request_type = RequestType::Cancel,
                 .order_id = req.order_id,
-                .reason_code = ReasonCode::OrderIdNotFound,
+                .reason = Reason::OrderIdNotFound,
             }
         );
 
         return events;
     }
 
-    if(!remove_order(req.order_id, reason_code, &removed_order)) {
+    if(!remove_order(req.order_id, reason, &removed_order)) {
         events.push_back(
             Event{
                 .event_type = EventType::OrderRejected,
                 .request_type = RequestType::Cancel,
                 .order_id = req.order_id,
-                .reason_code = reason_code,
+                .reason = reason,
             }
         );
 
@@ -450,7 +452,7 @@ std::vector<Event> OrderBook::handle_cancel_order(const CancelOrderRequest& req)
 std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req) {
     std::vector<Event> events;
 
-    ReasonCode reason_code;
+    Reason reason;
     
     if(!contains_order(req.order_id)) {
         events.push_back(
@@ -461,14 +463,14 @@ std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req)
                 .order_type = req.order_type,
                 .quantity = req.quantity,
                 .price = req.price,
-                .reason_code = ReasonCode::OrderIdNotFound,
+                .reason = Reason::OrderIdNotFound,
             }
         );
 
         return events;
     }
 
-    if(!is_valid_modify_order_request(req, reason_code)) {
+    if(!is_valid_modify_order_request(req, reason)) {
         events.push_back(
             Event{
                 .event_type = EventType::OrderRejected,
@@ -477,7 +479,7 @@ std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req)
                 .order_type = req.order_type,
                 .quantity = req.quantity,
                 .price = req.price,
-                .reason_code = reason_code,
+                .reason = reason,
             }
         );
 
@@ -511,11 +513,24 @@ std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req)
     std::vector<Event> events_new = handle_new_order(new_req);
     events.insert(events.end(), events_new.begin(), events_new.end());
 
+    events.push_back(
+        Event{
+            .event_type = EventType::OrderModified,
+            .request_type = RequestType::Modify,
+            .order_id = req.order_id,
+            .order_type = req.order_type,
+            .symbol_id = older_order.symbol_id,
+            .side = older_order.side,
+            .quantity = req.quantity,
+            .price = req.price,
+        }
+    );
+
     return events;
 
 }
 
-bool OrderBook::remove_order(OrderId order_id, ReasonCode& reason_code, Order* removed_order) {
+bool OrderBook::remove_order(OrderId order_id, Reason& reason, Order* removed_order) {
     auto lookup_it = order_lookup_.find(order_id);
 
     OrderLocation order_location = lookup_it->second;
@@ -523,7 +538,7 @@ bool OrderBook::remove_order(OrderId order_id, ReasonCode& reason_code, Order* r
     if(order_location.side == Side::Buy) {
         auto level_it = bids_.find(order_location.price);
         if(level_it == bids_.end()) {
-            reason_code = ReasonCode::OrderNotFound;
+            reason = Reason::OrderNotFound;
             return false;
         }
 
@@ -541,7 +556,7 @@ bool OrderBook::remove_order(OrderId order_id, ReasonCode& reason_code, Order* r
     } else {
         auto level_it = asks_.find(order_location.price);
         if(level_it == asks_.end()) {
-            reason_code = ReasonCode::OrderNotFound;
+            reason = Reason::OrderNotFound;
             return false;
         }
 
@@ -562,12 +577,14 @@ bool OrderBook::remove_order(OrderId order_id, ReasonCode& reason_code, Order* r
     return true;
 }
 
-bool OrderBook::check_invariants() const {
+bool OrderBook::check_invariants(InvariantViolation& violation) const {
     uint64_t order_count_in_book = 0;
+    violation = InvariantViolation::None;
     
     auto check_bid_book = [&]() -> bool {
         for(const auto& [price, price_level] : bids_) {
             if(price_level.orders.empty()) {
+                violation = InvariantViolation::EmptyBidPriceLevel;
                 return false;
             }
 
@@ -577,23 +594,38 @@ bool OrderBook::check_invariants() const {
                 const Order& order = *it;
                 
                 if(order.side != Side::Buy) {
+                    violation = InvariantViolation::BidOrderWrongSide;
                     return false;
                 }
 
                 if(order.price != price) {
+                    violation = InvariantViolation::OrderPriceMismatch;
                     return false;
                 }
 
                 if(order.remaining_quantity == 0) {
+                    violation = InvariantViolation::ZeroRemainingQuantity;
                     return false;
                 }
 
                 auto lookup_it = order_lookup_.find(order.order_id);
                 if(lookup_it == order_lookup_.end()) {
+                    violation = InvariantViolation::OrderMissingFromLookup;
                     return false;
                 }
 
-                if(lookup_it->second.side != Side::Buy || lookup_it->second.price != price || lookup_it->second.it != it) {
+                if(lookup_it->second.side != Side::Buy) {
+                    violation = InvariantViolation::LookupSideMismatch;
+                    return false;
+                }
+
+                if(lookup_it->second.price != price) {
+                    violation = InvariantViolation::LookupPriceMismatch;
+                    return false;
+                }
+
+                if(lookup_it->second.it != it) {
+                    violation = InvariantViolation::LookupIteratorMismatch;
                     return false;
                 }
 
@@ -602,6 +634,7 @@ bool OrderBook::check_invariants() const {
             }
 
             if(quantity_at_price_level != price_level.total_quantity) {
+                violation = InvariantViolation::LevelQuantityMismatch;
                 return false;
             }
         }
@@ -612,6 +645,7 @@ bool OrderBook::check_invariants() const {
     auto check_ask_book = [&]() -> bool {
         for(const auto& [price, price_level] : asks_) {
             if(price_level.orders.empty()) {
+                violation = InvariantViolation::EmptyAskPriceLevel;
                 return false;
             }
 
@@ -621,23 +655,38 @@ bool OrderBook::check_invariants() const {
                 const Order& order = *it;
                 
                 if(order.side != Side::Sell) {
+                    violation = InvariantViolation::AskOrderWrongSide;
                     return false;
                 }
 
                 if(order.price != price) {
+                    violation = InvariantViolation::OrderPriceMismatch;
                     return false;
                 }
 
                 if(order.remaining_quantity == 0) {
+                    violation = InvariantViolation::ZeroRemainingQuantity;
                     return false;
                 }
 
                 auto lookup_it = order_lookup_.find(order.order_id);
                 if(lookup_it == order_lookup_.end()) {
+                    violation = InvariantViolation::OrderMissingFromLookup;
                     return false;
                 }
 
-                if(lookup_it->second.side != Side::Sell || lookup_it->second.price != price || lookup_it->second.it != it) {
+                if(lookup_it->second.side != Side::Sell) {
+                    violation = InvariantViolation::LookupSideMismatch;
+                    return false;
+                }
+
+                if(lookup_it->second.price != price) {
+                    violation = InvariantViolation::LookupPriceMismatch;
+                    return false;
+                }
+
+                if(lookup_it->second.it != it) {
+                    violation = InvariantViolation::LookupIteratorMismatch;
                     return false;
                 }
 
@@ -646,6 +695,7 @@ bool OrderBook::check_invariants() const {
             }
 
             if(quantity_at_price_level != price_level.total_quantity) {
+                violation = InvariantViolation::LevelQuantityMismatch;
                 return false;
             }
         }
@@ -661,7 +711,8 @@ bool OrderBook::check_invariants() const {
         return false;
     }
 
-    if(order_count_in_book = order_lookup_.size()) {
+    if(order_count_in_book != order_lookup_.size()) {
+        violation = InvariantViolation::LookupSizeMismatch;
         return false;
     }
 
@@ -671,9 +722,68 @@ bool OrderBook::check_invariants() const {
         Price best_ask_price = asks_.begin()->first;
 
         if(best_bid_price >= best_ask_price) {
+            violation = InvariantViolation::CrossedBook;
             return false;
         }
     }
 
     return true;
+}
+
+void OrderBook::debug_print(std::ostream& os) const {
+    os << "\n\n========== ORDER BOOK ==========\n";
+    os << "\nASKS:\n";
+
+    // asks_ is ascending: lowest ask first.
+    // For display, print highest ask first, lowest ask last.
+    for(auto price_level_it = asks_.rbegin(); price_level_it != asks_.rend(); price_level_it++) {
+        Price price = price_level_it->first;
+        const PriceLevel& level = price_level_it->second;
+
+        os << "  Price: " << price
+           << " | Total Qty: " << level.total_quantity
+           << " | Orders: " << level.orders.size()
+           << "\n";
+
+        for (const Order& order : level.orders) {
+            os << "      order_id=" << order.order_id
+               << " qty=" << order.remaining_quantity
+               << " price=" << order.price
+               << " seq=" << order.sequence_number
+               << "\n";
+        }
+    }
+
+    os << "\nBIDS:\n";
+
+    for(auto level_it = bids_.begin(); level_it != bids_.end(); ++level_it) {
+        Price price = level_it->first;
+        const PriceLevel& level = level_it->second;
+
+        os << "  Price: " << price
+           << " | Total Qty: " << level.total_quantity
+           << " | Orders: " << level.orders.size()
+           << "\n";
+
+        for (const Order& order : level.orders) {
+            os << " order_id=" << order.order_id
+               << " qty=" << order.remaining_quantity
+               << " price=" << order.price
+               << " seq=" << order.sequence_number
+               << "\n";
+        }
+    }
+
+    os << "\nLOOKUP:\n";
+
+    os << "\nLookup size: " << order_lookup_.size() << '\n';
+
+    for(auto order_it = order_lookup_.begin(); order_it != order_lookup_.end(); order_it++) {
+        os << " order_id=" << order_it->first
+           << " price=" << order_it->second.price
+           << " it_order_id=" << order_it->second.it->order_id
+           << "\n";
+    }
+
+    os << "\n================================\n";
 }

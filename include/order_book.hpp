@@ -36,7 +36,8 @@ class OrderBook {
         bool contains_order(OrderId order_id) const;
 
         // Debugging/testing helper
-        bool check_invariants() const;
+        bool check_invariants(InvariantViolation& violation) const;
+        void debug_print(std::ostream& os) const;
 
     private:
         struct PriceLevel{
@@ -61,16 +62,16 @@ class OrderBook {
         SequenceNumber next_sequence_number_ = 1;
 
     private:
-        static bool is_valid_new_order_request(const NewOrderRequest& req, ReasonCode& reason_code);
-        static bool is_valid_modify_order_request(const ModifyOrderRequest& req, ReasonCode& reason_code);
-        static bool is_valid_cancel_order_request(const CancelOrderRequest& req, ReasonCode& reason_code);
+        static bool is_valid_new_order_request(const NewOrderRequest& req, Reason& reason);
+        static bool is_valid_modify_order_request(const ModifyOrderRequest& req, Reason& reason);
+        static bool is_valid_cancel_order_request(const CancelOrderRequest& req, Reason& reason);
 
         std::vector<Event> handle_new_order(const NewOrderRequest& req);
         std::vector<Event> handle_modify_order(const ModifyOrderRequest& req);
         std::vector<Event> handle_cancel_order(const CancelOrderRequest& req);
         // Use pointer instead of reference since reference can't be null
         // removed_order: optional, needed for modify order, does not need for cancel order
-        bool remove_order(OrderId order_id, ReasonCode& reason_code, Order* removed_order = nullptr);
+        bool remove_order(OrderId order_id, Reason& reason, Order* removed_order = nullptr);
 
         void match_buy(Order& incoming, std::vector<Event>& events, bool is_market);
         void match_sell(Order& incoming, std::vector<Event>& events, bool is_market);

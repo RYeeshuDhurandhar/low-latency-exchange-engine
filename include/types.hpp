@@ -25,9 +25,6 @@ enum class OrderStatus: uint8_t {
     New,
     PartiallyFilled,
     Resting,
-    Filled,
-    Cancelled,
-    Rejected
 };
 
 enum class EventType: uint8_t {
@@ -39,26 +36,47 @@ enum class EventType: uint8_t {
     OrderRested,                    // remaining limit order inserted into book
     UnfilledMarketOrderCancelled,   // remaining market order cancelled
     Trade,                          // two orders matched
-    BookUpdated                     // price level / best bid / best ask changed
 };
 
 enum class RequestType: uint8_t {
-    Unknown,
+    Unknown = 0,
     New,
     Modify,
     Cancel
 };
 
-enum class ReasonCode: uint8_t {
+enum class Reason: uint8_t {
     None = 0,
-    UnknownOrderType = 2,
-    UnknownSide = 3,
-    InvalidOrderId = 4,
-    InvalidSymbolId = 5,
-    InvalidLimitPrice = 6,
-    InvalidQuantity = 7,
-    DuplicateActiveOrderId = 8,
-    OrderNotFound = 9,
-    OrderIdNotFound = 10,
-    NotAModifyOrder = 11,
+    UnknownOrderType,
+    UnknownSide,
+    InvalidOrderId,
+    InvalidSymbolId,
+    InvalidLimitPrice,
+    InvalidQuantity,
+    DuplicateActiveOrderId,
+    OrderNotFound,
+    OrderIdNotFound,
+};
+
+enum class InvariantViolation {
+    None = 0,
+
+    EmptyBidPriceLevel,
+    EmptyAskPriceLevel,
+
+    BidOrderWrongSide,
+    AskOrderWrongSide,
+
+    OrderPriceMismatch,
+    ZeroRemainingQuantity,
+
+    OrderMissingFromLookup,
+    LookupSideMismatch,
+    LookupPriceMismatch,
+    LookupIteratorMismatch,
+
+    LevelQuantityMismatch,
+    LookupSizeMismatch,
+
+    CrossedBook
 };
