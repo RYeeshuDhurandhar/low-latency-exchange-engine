@@ -90,6 +90,12 @@ BenchmarkResult run_benchmark(
 
     std::sort(latencies.begin(), latencies.end());
 
+    long double latency_sum = 0.0L;
+    for(std::uint64_t latency : latencies) {
+        latency_sum += static_cast<long double>(latency);
+    }
+    double mean_ns = static_cast<double>(latency_sum / static_cast<long double>(latencies.size()));
+
     BenchmarkResult result;
 
     result.impl_name = book.name();
@@ -102,6 +108,8 @@ BenchmarkResult run_benchmark(
         static_cast<double>(result.operations) /
         (static_cast<double>(total_ns) / 1'000'000'000.0);
 
+    result.mean_ns = mean_ns;
+    result.min_ns = latencies.front();
     result.p50_ns = percentile(latencies, 0.50);
     result.p90_ns = percentile(latencies, 0.90);
     result.p99_ns = percentile(latencies, 0.99);
@@ -132,6 +140,8 @@ void print_human_readable(const BenchmarkResult& result) {
     std::cout << std::fixed << std::setprecision(3);
     std::cout << "throughput: " << throughput_mops << " M ops/sec\n";
 
+    std::cout << "min_ns: " << result.min_ns << '\n';
+    std::cout << "mean_ns: " << result.mean_ns << '\n';
     std::cout << "p50_ns: " << result.p50_ns << '\n';
     std::cout << "p90_ns: " << result.p90_ns << '\n';
     std::cout << "p99_ns: " << result.p99_ns << '\n';
@@ -155,6 +165,8 @@ void write_csv_header(std::ostream& os) {
         << "ops,"
         << "total_ns,"
         << "throughput_ops_sec,"
+        << "min_ns,"
+        << "mean_ns,"
         << "p50_ns,"
         << "p90_ns,"
         << "p99_ns,"
@@ -178,6 +190,8 @@ void write_csv_row(std::ostream& os, const BenchmarkResult& result) {
         << result.total_ns << ','
         << std::fixed << std::setprecision(3)
         << result.throughput_ops_per_sec << ','
+        << result.min_ns << ','
+        << result.mean_ns << ','
         << result.p50_ns << ','
         << result.p90_ns << ','
         << result.p99_ns << ','

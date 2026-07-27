@@ -52,6 +52,8 @@ struct BenchmarkResult {
 
     double throughput_ops_per_sec = 0.0;
 
+    std::int64_t min_ns = 0;
+    double mean_ns = 0.0;
     std::int64_t p50_ns = 0;
     std::int64_t p90_ns = 0;
     std::int64_t p99_ns = 0;

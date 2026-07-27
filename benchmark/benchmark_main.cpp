@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 #include "benchmark_runner.hpp"
 #include "benchmark_types.hpp"
@@ -143,7 +144,13 @@ int main(int argc, char** argv) {
         std::ofstream csv_file;
 
         if (!options.csv_path.empty()) {
-            csv_file.open(options.csv_path);
+            std::filesystem::path csv_path(options.csv_path);
+
+            if (csv_path.has_parent_path()) {
+                std::filesystem::create_directories(csv_path.parent_path());
+            }
+
+            csv_file.open(csv_path);
             if (!csv_file) {
                 throw std::runtime_error("failed to open CSV file: " + options.csv_path);
             }
