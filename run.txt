@@ -1,4 +1,28 @@
+Run core logic:
+
 mkdir -p build
 cmake -S . -B build
 cmake --build build
 ./build/exchange_engine
+
+--------------------------------------------------------------------------------------------------------
+Run benchmark:
+
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+
+Run one workload:
+./build/exchange_benchmark --impl map --workload mostly_adds --orders 1000000
+
+Run all workloads:
+./build/exchange_benchmark --impl map --all-workloads --orders 1000000
+
+Write CSV:
+./build/exchange_benchmark --impl map --all-workloads --orders 1000000 --csv results_map.csv
+
+Use fixed seed:
+./build/exchange_benchmark --impl map --all-workloads --orders 1000000 --seed 1 --csv results_map.csv
+
+After adding ladder:
+
+./build/exchange_benchmark --impl ladder --all-workloads --orders 1000000 --seed 1 --csv results_ladder.csv

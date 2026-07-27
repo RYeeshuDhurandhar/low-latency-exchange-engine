@@ -26,7 +26,7 @@ class OrderBook {
         std::vector<Event> submit(const ModifyOrderRequest& req);
         std::vector<Event> submit(const CancelOrderRequest& req);
 
-        // Can not modify OrderBook object, i.e., data structures of this class (asks_, bids_, order_lookup_, next_sequence_number_) 
+        // Constant member functions: can not modify OrderBook object, i.e., data structures of this class (asks_, bids_, order_lookup_, next_sequence_number_) 
         std::optional<Price> best_bid() const;
         std::optional<Price> best_ask() const;
 

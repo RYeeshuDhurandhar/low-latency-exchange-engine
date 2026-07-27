@@ -105,7 +105,7 @@ bool OrderBook::is_valid_new_order_request(const NewOrderRequest& req, Reason& r
  *      - quantity
  *      - price (only if limit order, else no need)
  * 
- * This function does not check since modify does not change these:
+ * This function does not check the following since modify does not change them:
  *      - side
  *      - symbol_id
 */
@@ -266,7 +266,7 @@ void OrderBook::match_buy(Order& incoming, std::vector<Event>& events, bool is_m
                     .request_type = RequestType::New,
                     .resting_order_id = resting.order_id,
                     .aggressive_order_id = incoming.order_id,
-                    .order_type = (is_market)? OrderType::Market : OrderType::Limit,
+                    .order_type = (is_market) ? OrderType::Market : OrderType::Limit,
                     .symbol_id = resting.symbol_id,
                     .side = incoming.side,
                     .quantity = trade_qty,
@@ -337,7 +337,7 @@ void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
     if(order.side == Side::Buy) {
         PriceLevel& price_level = bids_[order.price];
 
-        price_level.orders.push_back(std::move(order));
+        price_level.orders.push_back(std::move(order));     // Note: order is not used after this since it is moved and may no longer contain the old value.
         auto it = std::prev(price_level.orders.end());
 
         price_level.total_quantity += it->remaining_quantity;
@@ -363,7 +363,7 @@ void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
     } else {
         PriceLevel& price_level = asks_[order.price];
 
-        price_level.orders.push_back(std::move(order));
+        price_level.orders.push_back(std::move(order));     // Note: order is not used after this since it is moved and may no longer contain the old value.
         auto it = std::prev(price_level.orders.end());
 
         price_level.total_quantity += it->remaining_quantity;
@@ -453,6 +453,21 @@ std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req)
     std::vector<Event> events;
 
     Reason reason;
+    if(!is_valid_modify_order_request(req, reason)) {
+        events.push_back(
+            Event{
+                .event_type = EventType::OrderRejected,
+                .request_type = RequestType::Modify,
+                .order_id = req.order_id,
+                .order_type = req.order_type,
+                .quantity = req.quantity,
+                .price = req.price,
+                .reason = reason,
+            }
+        );
+
+        return events;
+    }
     
     if(!contains_order(req.order_id)) {
         events.push_back(
@@ -464,22 +479,6 @@ std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req)
                 .quantity = req.quantity,
                 .price = req.price,
                 .reason = Reason::OrderIdNotFound,
-            }
-        );
-
-        return events;
-    }
-
-    if(!is_valid_modify_order_request(req, reason)) {
-        events.push_back(
-            Event{
-                .event_type = EventType::OrderRejected,
-                .request_type = RequestType::Modify,
-                .order_id = req.order_id,
-                .order_type = req.order_type,
-                .quantity = req.quantity,
-                .price = req.price,
-                .reason = reason,
             }
         );
 
@@ -717,7 +716,7 @@ bool OrderBook::check_invariants(InvariantViolation& violation) const {
     }
 
     // After matching, book should not be crossed
-    if(!bids_.empty() && asks_.empty()) {
+    if(!bids_.empty() && !asks_.empty()) {
         Price best_bid_price = bids_.begin()->first;
         Price best_ask_price = asks_.begin()->first;
 

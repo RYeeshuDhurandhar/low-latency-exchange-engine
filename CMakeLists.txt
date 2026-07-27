@@ -18,3 +18,24 @@ target_compile_options(exchange_engine PRIVATE
     -Wextra
     -Wpedantic
 )
+
+add_executable(exchange_benchmark
+    benchmark/benchmark_main.cpp
+    benchmark/benchmark_runner.cpp
+    benchmark/workload_generator.cpp
+    benchmark/allocation_counter.cpp
+
+    src/order_book.cpp
+)
+
+target_include_directories(exchange_benchmark PRIVATE
+    include
+    benchmark
+)
+
+target_compile_features(exchange_benchmark PRIVATE cxx_std_20)
+
+target_compile_options(exchange_benchmark PRIVATE
+    -O3
+    -DNDEBUG
+)
