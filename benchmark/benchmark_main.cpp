@@ -163,7 +163,7 @@ int main(int argc, char** argv) {
 
             std::vector<BenchRequest> trace = generate_workload(config);
 
-            std::unique_ptr<IBenchmarkBook> book = make_benchmark_book(options.impl);
+            std::unique_ptr<IBenchmarkBook> book = make_benchmark_book(options.impl, trace.size());
 
             BenchmarkResult result = run_benchmark(*book, trace, workload_name);
 

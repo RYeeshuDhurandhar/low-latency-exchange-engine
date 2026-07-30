@@ -1,28 +1,64 @@
 #include "order_book.hpp"
 
+#include <cstddef>
 #include <algorithm>
 #include <iterator>
 #include <iostream>
+#include <type_traits>
+
+OrderBook::OrderBook(std::size_t expected_orders) {
+    if(expected_orders > 0) {
+        order_lookup_.reserve(expected_orders);
+    }
+}
 
 std::vector<Event> OrderBook::submit(const OrderRequest& req) {
-    return std::visit(
-        [this](const auto& actual_req) {
-            return submit(actual_req);
+    std::vector<Event> events;
+    events.reserve(4);          // Generally enough for common requests
+
+    std::visit(
+        [this, &events](const auto& actual_req) {
+            using T = std::decay_t<decltype(actual_req)>;
+
+            if constexpr (std::is_same_v<T, NewOrderRequest>) {
+                handle_new_order(actual_req, events);
+            } else if constexpr (std::is_same_v<T, ModifyOrderRequest>) {
+                handle_modify_order(actual_req, events);
+            } else if constexpr (std::is_same_v<T, CancelOrderRequest>) {
+                handle_cancel_order(actual_req, events);
+            }
         },
         req
     );
+
+    return events;
 }
 
 std::vector<Event> OrderBook::submit(const NewOrderRequest& req) {
-    return handle_new_order(req);
+    std::vector<Event> events;
+    events.reserve(4);
+
+    handle_new_order(req, events);
+
+    return events;
 }
 
 std::vector<Event> OrderBook::submit(const ModifyOrderRequest& req) {
-    return handle_modify_order(req);
+    std::vector<Event> events;
+    events.reserve(4);
+
+    handle_modify_order(req, events);
+
+    return events;
 }
 
 std::vector<Event> OrderBook::submit(const CancelOrderRequest& req) {
-    return handle_cancel_order(req);
+    std::vector<Event> events;
+    events.reserve(4);
+
+    handle_cancel_order(req, events);
+
+    return events;
 }
 
 std::optional<Price> OrderBook::best_bid() const {
@@ -146,9 +182,7 @@ bool OrderBook::is_valid_cancel_order_request(const CancelOrderRequest& req, Rea
     return true;
 }
 
-std::vector<Event> OrderBook::handle_new_order(const NewOrderRequest& req) {
-    std::vector<Event> events;
-
+void OrderBook::handle_new_order(const NewOrderRequest& req, std::vector<Event>& events) {
     Reason reason;
     if(!is_valid_new_order_request(req, reason)) {
         events.push_back(
@@ -165,7 +199,7 @@ std::vector<Event> OrderBook::handle_new_order(const NewOrderRequest& req) {
             }
         );
 
-        return events;
+        return;
     }
 
     if(contains_order(req.order_id)) {
@@ -183,7 +217,7 @@ std::vector<Event> OrderBook::handle_new_order(const NewOrderRequest& req) {
             }
         );
 
-        return events;
+        return;
     }
 
     Order incoming = Order{
@@ -237,7 +271,7 @@ std::vector<Event> OrderBook::handle_new_order(const NewOrderRequest& req) {
         }
     }
 
-    return events;
+    return;
 }
 
 void OrderBook::match_buy(Order& incoming, std::vector<Event>& events, bool is_market) {
@@ -342,11 +376,15 @@ void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
 
         price_level.total_quantity += it->remaining_quantity;
 
-        order_lookup_[it->order_id] = OrderLocation{
-            .side = it->side,
-            .price = it->price,
-            .it = it,
-        };
+        // Construct key/value directly. Avoid creating default OrderLocation first and then assigning. Direct
+        order_lookup_.emplace(
+            it->order_id,
+            OrderLocation{
+                .side = it->side,
+                .price = it->price,
+                .it = it,
+            }
+        );
 
         events.push_back(
             Event{
@@ -368,11 +406,14 @@ void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
 
         price_level.total_quantity += it->remaining_quantity;
 
-        order_lookup_[it->order_id] = OrderLocation{
-            .side = it->side,
-            .price = it->price,
-            .it = it,
-        };
+        order_lookup_.emplace(
+            it->order_id,
+            OrderLocation{
+                .side = it->side,
+                .price = it->price,
+                .it = it,
+            }
+        );
 
         events.push_back(
             Event{
@@ -389,8 +430,7 @@ void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
     }
 }
 
-std::vector<Event> OrderBook::handle_cancel_order(const CancelOrderRequest& req) {
-    std::vector<Event> events;
+void OrderBook::handle_cancel_order(const CancelOrderRequest& req, std::vector<Event>& events) {
     Order removed_order;
     Reason reason;
 
@@ -404,7 +444,7 @@ std::vector<Event> OrderBook::handle_cancel_order(const CancelOrderRequest& req)
             }
         );
 
-        return events;
+        return;
     }
 
     if(!contains_order(req.order_id)) {
@@ -417,7 +457,7 @@ std::vector<Event> OrderBook::handle_cancel_order(const CancelOrderRequest& req)
             }
         );
 
-        return events;
+        return;
     }
 
     if(!remove_order(req.order_id, reason, &removed_order)) {
@@ -430,7 +470,7 @@ std::vector<Event> OrderBook::handle_cancel_order(const CancelOrderRequest& req)
             }
         );
 
-        return events;
+        return;
     }
 
     events.push_back(
@@ -446,12 +486,10 @@ std::vector<Event> OrderBook::handle_cancel_order(const CancelOrderRequest& req)
         }
     );
 
-    return events;
+    return;
 }
 
-std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req) {
-    std::vector<Event> events;
-
+void OrderBook::handle_modify_order(const ModifyOrderRequest& req, std::vector<Event>& events) {
     Reason reason;
     if(!is_valid_modify_order_request(req, reason)) {
         events.push_back(
@@ -466,7 +504,7 @@ std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req)
             }
         );
 
-        return events;
+        return;
     }
     
     if(!contains_order(req.order_id)) {
@@ -482,35 +520,34 @@ std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req)
             }
         );
 
-        return events;
+        return;
     }
 
     // Modify = Cancel + New Order
     auto lookup_it = order_lookup_.find(req.order_id);
-    Order older_order = *(lookup_it->second.it);
+    SymbolId old_symbol_id = lookup_it->second.it->symbol_id;
+    Side old_side = lookup_it->second.it->side;
 
     CancelOrderRequest cancel_req = CancelOrderRequest{
         .order_id = req.order_id,
     };
     
-    std::vector<Event> events_cancel = handle_cancel_order(cancel_req);
-    events.insert(events.end(), events_cancel.begin(), events_cancel.end());
+    handle_cancel_order(cancel_req, events);
 
     NewOrderRequest new_req = NewOrderRequest{
         .order_type = req.order_type,
         .order_id = req.order_id,
 
         // Modify should not change symbol or side 
-        .symbol_id = older_order.symbol_id,
-        .side = older_order.side,
+        .symbol_id = old_symbol_id,
+        .side = old_side,
 
         .price = req.price,
         .quantity = req.quantity,
     };
 
 
-    std::vector<Event> events_new = handle_new_order(new_req);
-    events.insert(events.end(), events_new.begin(), events_new.end());
+    handle_new_order(new_req, events);
 
     events.push_back(
         Event{
@@ -518,21 +555,21 @@ std::vector<Event> OrderBook::handle_modify_order(const ModifyOrderRequest& req)
             .request_type = RequestType::Modify,
             .order_id = req.order_id,
             .order_type = req.order_type,
-            .symbol_id = older_order.symbol_id,
-            .side = older_order.side,
+            .symbol_id = old_symbol_id,
+            .side = old_side,
             .quantity = req.quantity,
             .price = req.price,
         }
     );
 
-    return events;
+    return;
 
 }
 
 bool OrderBook::remove_order(OrderId order_id, Reason& reason, Order* removed_order) {
     auto lookup_it = order_lookup_.find(order_id);
 
-    OrderLocation order_location = lookup_it->second;
+    const OrderLocation& order_location = lookup_it->second;
 
     if(order_location.side == Side::Buy) {
         auto level_it = bids_.find(order_location.price);
@@ -541,15 +578,15 @@ bool OrderBook::remove_order(OrderId order_id, Reason& reason, Order* removed_or
             return false;
         }
 
-        PriceLevel* price_level = &level_it->second;
+        PriceLevel& price_level = level_it->second;
         
         if(removed_order != nullptr) {
             *removed_order = *(order_location.it);
         }
 
-        price_level->total_quantity -= order_location.it->remaining_quantity;
-        price_level->orders.erase(order_location.it);
-        if(price_level->orders.empty()) {
+        price_level.total_quantity -= order_location.it->remaining_quantity;
+        price_level.orders.erase(order_location.it);
+        if(price_level.orders.empty()) {
             bids_.erase(level_it);
         }
     } else {
@@ -559,15 +596,15 @@ bool OrderBook::remove_order(OrderId order_id, Reason& reason, Order* removed_or
             return false;
         }
 
-        PriceLevel* price_level = &level_it->second;
+        PriceLevel& price_level = level_it->second;
         
         if(removed_order != nullptr) {
             *removed_order = *(order_location.it);
         }
 
-        price_level->total_quantity -= order_location.it->remaining_quantity;
-        price_level->orders.erase(order_location.it);
-        if(price_level->orders.empty()) {
+        price_level.total_quantity -= order_location.it->remaining_quantity;
+        price_level.orders.erase(order_location.it);
+        if(price_level.orders.empty()) {
             asks_.erase(level_it);
         }
     }

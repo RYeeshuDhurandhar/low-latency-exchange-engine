@@ -67,12 +67,12 @@ inline OrderRequest to_order_request(const BenchRequest& req) {
 
 class MapOrderBookAdapter final : public IBenchmarkBook {
     public:
-        MapOrderBookAdapter() {
+        explicit MapOrderBookAdapter(std::size_t expected_orders) : expected_orders_(expected_orders) {
             reset();
         }
 
         void reset() override {
-            book_ = std::make_unique<OrderBook>();
+            book_ = std::make_unique<OrderBook>(expected_orders_);
         }
 
         void process(const BenchRequest& req, BenchmarkEventSink& sink) override {
@@ -88,12 +88,13 @@ class MapOrderBookAdapter final : public IBenchmarkBook {
         }
 
     private:
+        std::size_t expected_orders_ = 0;
         std::unique_ptr<OrderBook> book_;
 };
 
-inline std::unique_ptr<IBenchmarkBook> make_benchmark_book(const std::string& impl) {
+inline std::unique_ptr<IBenchmarkBook> make_benchmark_book(const std::string& impl, std::size_t expected_orders) {
     if(impl == "map") {
-        return std::make_unique<MapOrderBookAdapter>();
+        return std::make_unique<MapOrderBookAdapter>(expected_orders);
     }
 
     // Other implementations will come here

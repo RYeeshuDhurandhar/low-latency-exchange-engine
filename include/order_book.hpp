@@ -13,8 +13,7 @@
 
 class OrderBook {
     public:
-        // Explicitly ask compiler to generate default constructor
-        OrderBook() = default;
+        explicit OrderBook(std::size_t expected_orders = 0);
 
         // Disable copy constructor and copy assignment
         // Reason: copied order_lookup_ might contain iterators pointing into the old book’s lists, not the copied book’s lists, which is unsafe
@@ -66,9 +65,9 @@ class OrderBook {
         static bool is_valid_modify_order_request(const ModifyOrderRequest& req, Reason& reason);
         static bool is_valid_cancel_order_request(const CancelOrderRequest& req, Reason& reason);
 
-        std::vector<Event> handle_new_order(const NewOrderRequest& req);
-        std::vector<Event> handle_modify_order(const ModifyOrderRequest& req);
-        std::vector<Event> handle_cancel_order(const CancelOrderRequest& req);
+        void handle_new_order(const NewOrderRequest& req, std::vector<Event>& events);
+        void handle_modify_order(const ModifyOrderRequest& req, std::vector<Event>& events);
+        void handle_cancel_order(const CancelOrderRequest& req, std::vector<Event>& events);
         // Use pointer instead of reference since reference can't be null
         // removed_order: optional, needed for modify order, does not need for cancel order
         bool remove_order(OrderId order_id, Reason& reason, Order* removed_order = nullptr);
