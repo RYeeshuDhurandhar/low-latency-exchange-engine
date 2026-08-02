@@ -78,5 +78,8 @@ enum class InvariantViolation {
     LevelQuantityMismatch,
     LookupSizeMismatch,
 
-    CrossedBook
+    CrossedBook,
+
+    EmptyLevelHasHead,
+    EmptyLevelHasTail,
 };

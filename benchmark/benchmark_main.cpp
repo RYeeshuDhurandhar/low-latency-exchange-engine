@@ -36,7 +36,7 @@ void print_usage(const char* argv0) {
         << "Usage:\n"
         << "  " << argv0 << " [options]\n\n"
         << "Options:\n"
-        << "  --impl <name>              Implementation: map\n"
+        << "  --impl <name>              Implementation: map, ladder_pool\n"
         << "  --workload <name>          Workload name\n"
         << "  --all-workloads            Run all workloads\n"
         << "  --orders <N>               Number of operations\n"
@@ -59,7 +59,15 @@ std::uint64_t parse_u64(const std::string& s) {
 }
 
 Price parse_price(const std::string& s) {
-    return static_cast<Price>(std::stoll(s));
+    if (s.empty()) {
+        throw std::invalid_argument("empty price value");
+    }
+
+    if (s[0] == '-') {
+        throw std::invalid_argument("negative price value is not allowed: " + s);
+    }
+
+    return static_cast<Price>(std::stoull(s));
 }
 
 CliOptions parse_cli(int argc, char** argv) {
@@ -163,7 +171,13 @@ int main(int argc, char** argv) {
 
             std::vector<BenchRequest> trace = generate_workload(config);
 
-            std::unique_ptr<IBenchmarkBook> book = make_benchmark_book(options.impl, trace.size());
+            std::unique_ptr<IBenchmarkBook> book = make_benchmark_book(
+                options.impl,
+                config.min_price,
+                config.max_price,
+                config.tick_size,
+                trace.size()
+            );
 
             BenchmarkResult result = run_benchmark(*book, trace, workload_name);
 

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <functional>
-#include <list>
-#include <map>
+#include <cstddef>
+#include <iosfwd>
+#include <limits>
 #include <unordered_map>
 #include <vector>
 #include <optional>
@@ -11,14 +11,18 @@
 #include "order.hpp"
 #include "event.hpp"
 
-class OrderBook {
+class OrderBookLadderPool {
     public:
-        explicit OrderBook(std::size_t expected_orders = 0);
+        explicit OrderBookLadderPool(
+            Price min_price = 9000, 
+            Price max_price = 11000, 
+            Price tick_size = 1, 
+            std::size_t expected_orders = 0
+        );
 
         // Disable copy constructor and copy assignment
-        // Reason: copied order_lookup_ might contain iterators pointing into the old book’s lists, not the copied book’s lists, which is unsafe
-        OrderBook(const OrderBook&) = delete;
-        OrderBook& operator = (const OrderBook&) = delete;
+        OrderBookLadderPool(const OrderBookLadderPool&) = delete;
+        OrderBookLadderPool& operator = (const OrderBookLadderPool&) = delete;
 
         std::vector<Event> submit(const OrderRequest& req);
         std::vector<Event> submit(const NewOrderRequest& req);
@@ -39,25 +43,48 @@ class OrderBook {
         void debug_print(std::ostream& os) const;
 
     private:
+        using NodeIndex = std::size_t;
+        using PriceLevelIndex = std::size_t;
+        static constexpr NodeIndex invalid_node = std::numeric_limits<NodeIndex>::max();
+        static constexpr PriceLevelIndex invalid_level = std::numeric_limits<PriceLevelIndex>::max();
+
         struct PriceLevel{
-            std::list<Order> orders;
+            NodeIndex head = invalid_node;
+            NodeIndex tail = invalid_node;
             Quantity total_quantity = 0;
-        };
-        
-        struct OrderLocation {
-            Side side;
-            Price price;
-            std::list<Order>::iterator it;
+
+            bool empty() const {
+                return head == invalid_node;
+            }
         };
 
-        using AskBook = std::map<Price, PriceLevel>;
-        using BidBook = std::map<Price, PriceLevel, std::greater<Price>>;
-        using OrderLookup = std::unordered_map<OrderId, OrderLocation>;
+        struct OrderNode {
+            Order order;
+
+            NodeIndex prev = invalid_node;
+            NodeIndex next = invalid_node;
+            
+            NodeIndex next_free = invalid_node;
+            bool in_use = false;  
+        };
 
     private:
-        AskBook asks_;
-        BidBook bids_;
-        OrderLookup order_lookup_;
+        Price min_price_;
+        Price max_price_;
+        Price tick_size_;
+        PriceLevelIndex level_count_;
+
+        std::vector<PriceLevel> bid_levels_;
+        std::vector<PriceLevel> ask_levels_;
+
+        std::vector<OrderNode> nodes_;                      // pool storage
+        NodeIndex free_head_ = invalid_node;                        // head of free list
+
+        std::unordered_map<OrderId, NodeIndex> order_lookup_;
+
+        PriceLevelIndex best_bid_level_index_ = invalid_level;
+        PriceLevelIndex best_ask_level_index_ = invalid_level;
+
         SequenceNumber next_sequence_number_ = 1;
 
     private:
@@ -76,4 +103,17 @@ class OrderBook {
         void match_sell(Order& incoming, std::vector<Event>& events, bool is_market);
 
         void add_resting_order(Order&& order, std::vector<Event>& events);
+    
+    private:
+        bool price_to_level_index(Price price, PriceLevelIndex& level_index) const;
+        Price level_index_to_price(PriceLevelIndex level_index) const;
+
+        NodeIndex allocate_node(Order&& order);
+        void free_node(NodeIndex node_index);
+
+        void push_back_level(PriceLevel& level, NodeIndex node_index);
+        void unlink_from_level(PriceLevel& level, NodeIndex node_index);
+
+        void refresh_best_bid_from(PriceLevelIndex start_level_index);
+        void refresh_best_ask_from(PriceLevelIndex start_level_index);
 };

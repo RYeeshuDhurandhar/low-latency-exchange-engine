@@ -311,10 +311,14 @@ void OrderBook::match_buy(Order& incoming, std::vector<Event>& events, bool is_m
             if(resting.remaining_quantity == 0) {
                 order_lookup_.erase(resting.order_id);
                 price_level.orders.pop_front();
+            } else {
+                resting.order_status = OrderStatus::PartiallyFilled;
             }
         }
 
-        if(price_level.orders.empty()) asks_.erase(best_ask_it);
+        if(price_level.orders.empty()) {
+            asks_.erase(best_ask_it);
+        }
     }
 }
 
@@ -361,7 +365,9 @@ void OrderBook::match_sell(Order& incoming, std::vector<Event>& events, bool is_
             }
         }
 
-        if(price_level.orders.empty()) bids_.erase(best_bid_it);
+        if(price_level.orders.empty()) {
+            bids_.erase(best_bid_it);
+        }
     }
 }
 
@@ -561,9 +567,6 @@ void OrderBook::handle_modify_order(const ModifyOrderRequest& req, std::vector<E
             .price = req.price,
         }
     );
-
-    return;
-
 }
 
 bool OrderBook::remove_order(OrderId order_id, Reason& reason, Order* removed_order) {

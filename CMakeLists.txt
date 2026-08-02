@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(exchange_engine
     src/main.cpp
     src/order_book.cpp
+    src/order_book_ladder_pool.cpp
 )
 
 target_include_directories(exchange_engine PRIVATE include)
@@ -26,6 +27,7 @@ add_executable(exchange_benchmark
     benchmark/allocation_counter.cpp
 
     src/order_book.cpp
+    src/order_book_ladder_pool.cpp
 )
 
 target_include_directories(exchange_benchmark PRIVATE

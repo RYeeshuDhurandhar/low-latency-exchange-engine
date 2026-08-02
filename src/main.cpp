@@ -1,4 +1,5 @@
 #include "order_book.hpp"
+#include "order_book_ladder_pool.hpp"
 
 #include <iostream>
 
@@ -34,7 +35,7 @@ const char* request_type_to_string(RequestType type) {
         case RequestType::Cancel:
             return "CANCEL";
         case RequestType::Unknown:
-            return "UNKNOWM";
+            return "UNKNOWN";
     }
 
     return "UNKNOWN";
@@ -136,6 +137,12 @@ const char* invariant_violation_to_string(InvariantViolation violation) {
 
         case InvariantViolation::CrossedBook:
             return "CrossedBook";
+        
+        case InvariantViolation::EmptyLevelHasHead:
+            return "EmptyLevelHasHead";
+        
+        case InvariantViolation::EmptyLevelHasTail:
+            return "EmptyLevelHasTail";
     }
 
     return "UnknownInvariantViolation";
@@ -188,21 +195,30 @@ void print_events(const std::vector<Event>& events) {
     }
 }
 
-void print_top_of_book(const OrderBook& book) {
+template <typename Book>
+void print_top_of_book(const Book& book) {
     std::cout << "\n\nTop of book:\n";
 
-    if (auto best_bid = book.best_bid()) {
-        std::cout << "Best bid: " << *best_bid
-                  << " qty=" << *book.best_bid_quantity()
-                  << '\n';
+    const auto best_bid = book.best_bid();
+    const auto best_bid_quantity = book.best_bid_quantity();
+
+    if (best_bid && best_bid_quantity) {
+        std::cout
+            << "Best bid: " << *best_bid
+            << " qty=" << *best_bid_quantity
+            << '\n';
     } else {
         std::cout << "Best bid: none\n";
     }
 
-    if (auto best_ask = book.best_ask()) {
-        std::cout << "Best ask: " << *best_ask
-                  << " qty=" << *book.best_ask_quantity()
-                  << '\n';
+    const auto best_ask = book.best_ask();
+    const auto best_ask_quantity = book.best_ask_quantity();
+
+    if (best_ask && best_ask_quantity) {
+        std::cout
+            << "Best ask: " << *best_ask
+            << " qty=" << *best_ask_quantity
+            << '\n';
     } else {
         std::cout << "Best ask: none\n";
     }
@@ -210,79 +226,125 @@ void print_top_of_book(const OrderBook& book) {
     std::cout << '\n';
 }
 
-int main() {
-    OrderBook book;
-
-    // Use integer prices.
-    // Example: 100.50 dollars can be represented as 10050 cents.
+template <typename Book>
+void run_scenario(Book& book, const char* implementation_name) {
     constexpr SymbolId AAPL = 1;
 
-    std::cout << "\n\nAdd SELL S1: 40 @ 100.50\n";
-    print_events(book.submit(NewOrderRequest{
-        .order_type = OrderType::Limit,
-        .order_id = 1,
-        .symbol_id = AAPL,
-        .side = Side::Sell,
-        .price = 10050,
-        .quantity = 40
-    }));
+    std::cout
+        << "\n\n========================================\n"
+        << "Running implementation: "
+        << implementation_name
+        << "\n========================================\n";
+
+    std::cout << "\nAdd SELL S1: 40 @ 100.50\n";
+    std::vector<Event> events = book.submit(
+        NewOrderRequest{
+            .order_type = OrderType::Limit,
+            .order_id = 1,
+            .symbol_id = AAPL,
+            .side = Side::Sell,
+            .price = 10050,
+            .quantity = 40,
+        }
+    );
+
+    std::cout << "Event size: " << events.size();
+    print_events(events);
 
     std::cout << "\n\nAdd SELL S2: 100 @ 100.75\n";
-    print_events(book.submit(NewOrderRequest{
-        .order_type = OrderType::Limit,
-        .order_id = 2,
-        .symbol_id = AAPL,
-        .side = Side::Sell,
-        .price = 10075,
-        .quantity = 100
-    }));
+    print_events(
+        book.submit(
+            NewOrderRequest{
+                .order_type = OrderType::Limit,
+                .order_id = 2,
+                .symbol_id = AAPL,
+                .side = Side::Sell,
+                .price = 10075,
+                .quantity = 100,
+            }
+        )
+    );
 
     std::cout << "\n\nAdd BUY B1: 100 @ 100.10\n";
-    print_events(book.submit(NewOrderRequest{
-        .order_type = OrderType::Limit,
-        .order_id = 3,
-        .symbol_id = AAPL,
-        .side = Side::Buy,
-        .price = 10010,
-        .quantity = 100
-    }));
+    print_events(
+        book.submit(
+            NewOrderRequest{
+                .order_type = OrderType::Limit,
+                .order_id = 3,
+                .symbol_id = AAPL,
+                .side = Side::Buy,
+                .price = 10010,
+                .quantity = 100,
+            }
+        )
+    );
 
     std::cout << "\n\nModify BUY B1: 100 @ 100.00\n";
-    print_events(book.submit(ModifyOrderRequest{
-        .order_type = OrderType::Limit,
-        .order_id = 3,
-        .price = 10000,
-        .quantity = 100
-    }));
+    print_events(
+        book.submit(
+            ModifyOrderRequest{
+                .order_type = OrderType::Limit,
+                .order_id = 3,
+                .price = 10000,
+                .quantity = 100,
+            }
+        )
+    );
 
     print_top_of_book(book);
 
     std::cout << "\nIncoming BUY B2: 120 @ 100.75\n";
-    print_events(book.submit(NewOrderRequest{
-        .order_type = OrderType::Limit,
-        .order_id = 4,
-        .symbol_id = AAPL,
-        .side = Side::Buy,
-        .price = 10075,
-        .quantity = 120
-    }));
+    print_events(
+        book.submit(
+            NewOrderRequest{
+                .order_type = OrderType::Limit,
+                .order_id = 4,
+                .symbol_id = AAPL,
+                .side = Side::Buy,
+                .price = 10075,
+                .quantity = 120,
+            }
+        )
+    );
 
     print_top_of_book(book);
 
     std::cout << "\nCancel B1 order_id=3\n";
-    print_events(book.submit(CancelOrderRequest{
-        .order_id = 3
-    }));
+    print_events(
+        book.submit(
+            CancelOrderRequest{
+                .order_id = 3,
+            }
+        )
+    );
 
     print_top_of_book(book);
 
-    InvariantViolation violation;
-    std::cout << "Invariants OK? "
-              << (book.check_invariants(violation) ? "yes" : "no") <<"\n"
-              << "Reason: " << invariant_violation_to_string(violation)
-              << '\n';
+    InvariantViolation violation = InvariantViolation::None;
+    const bool invariants_ok = book.check_invariants(violation);
+
+    std::cout
+        << "\nInvariants OK? "
+        << (invariants_ok ? "yes" : "no")
+        << "\nReason: "
+        << invariant_violation_to_string(violation)
+        << '\n';
 
     book.debug_print(std::cout);
+}
+
+int main() {
+    OrderBook map_book(20);
+
+    OrderBookLadderPool ladder_pool_book(
+        9000,   // minimum price
+        11000,  // maximum price
+        1,      // tick size
+        20      // expected orders
+    );
+
+    run_scenario(map_book, "Map + list order book");
+    run_scenario(ladder_pool_book, "Price ladder + object pool");
 
     return 0;
 }

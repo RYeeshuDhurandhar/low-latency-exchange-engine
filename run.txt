@@ -6,7 +6,7 @@ cmake --build build
 ./build/exchange_engine
 
 --------------------------------------------------------------------------------------------------------
-Run benchmark:
+Run benchmark v1:
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
@@ -26,3 +26,36 @@ Use fixed seed:
 After adding ladder:
 
 ./build/exchange_benchmark --impl ladder --all-workloads --orders 10000000 --seed 1 --csv results/results_ladder.csv
+
+--------------------------------------------------------------------------------------------------------
+Run benchmark v2:
+
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+
+./build/exchange_benchmark \
+  --impl map \
+  --all-workloads \
+  --orders 10000000 \
+  --seed 1 \
+  --csv results/results_map_v3_compare.csv
+
+
+./build/exchange_benchmark \
+  --impl ladder_pool \
+  --all-workloads \
+  --orders 10000000 \
+  --seed 1 \
+  --csv results/results_ladder_pool_v3.csv
+
+--------------------------------------------------------------------------------------------------------
+Debug mode:
+
+cmake -S . -B build-debug \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_CXX_FLAGS_DEBUG="-O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer" \
+  -DCMAKE_EXE_LINKER_FLAGS_DEBUG="-fsanitize=address,undefined"
+
+cmake --build build-debug
+
+./build-debug/exchange_engine
