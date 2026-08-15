@@ -1,4 +1,3 @@
-// Edit to add new book implementations
 
 #pragma once
 
@@ -8,63 +7,9 @@
 #include <vector>
 #include <variant>
 
-#include "benchmark_event_sink.hpp"
-#include "benchmark_types.hpp"
-#include "order_book.hpp"
-#include "order_book_ladder_pool.hpp"
-
-class IBenchmarkBook {
-public:
-    virtual ~IBenchmarkBook() = default;
-
-    virtual void reset() = 0;
-    virtual void process(const BenchRequest& req, BenchmarkEventSink& sink) = 0;
-    virtual const char* name() const = 0;
-};
-
-// Convert benchmark request to real order request
-inline OrderRequest to_order_request(const BenchRequest& req) {
-    switch (req.bench_op_type) {
-        case BenchOpType::NewLimit:
-        case BenchOpType::NewMarket: {
-            NewOrderRequest new_req;
-
-            new_req.order_id = req.order_id;
-            new_req.order_type = (req.bench_op_type == BenchOpType::NewMarket) ? OrderType::Market : OrderType::Limit;
-            new_req.price = req.price;
-            new_req.quantity = req.quantity;
-            new_req.side = req.side;
-            new_req.symbol_id = req.symbol_id;
-
-            return OrderRequest{std::in_place_type<NewOrderRequest>, new_req};
-        }
-
-        case BenchOpType::Modify: {
-            ModifyOrderRequest modify_req;
-
-            modify_req.order_id = req.order_id;
-            modify_req.order_type = req.order_type;
-            modify_req.price = req.price;
-            modify_req.quantity = req.quantity;
-
-            return OrderRequest{std::in_place_type<ModifyOrderRequest>, modify_req};
-        }
-
-        case BenchOpType::Cancel: {
-            CancelOrderRequest cancel_req;
-
-            cancel_req.order_id = req.order_id;
-
-            return OrderRequest{std::in_place_type<CancelOrderRequest>, cancel_req};
-        }
-
-        case BenchOpType::Unknown: {
-            return OrderRequest{std::in_place_type<CancelOrderRequest>, CancelOrderRequest{}};
-        }
-    }
-
-    return OrderRequest{std::in_place_type<CancelOrderRequest>, CancelOrderRequest{}};
-}
+#include "map_order_book.hpp"
+#include "ladder_pool_order_book.hpp"
+#include "benchmark_common.hpp"
 
 class MapOrderBookAdapter final : public IBenchmarkBook {
     public:
@@ -73,7 +18,7 @@ class MapOrderBookAdapter final : public IBenchmarkBook {
         }
 
         void reset() override {
-            book_ = std::make_unique<OrderBook>(expected_orders_);
+            book_ = std::make_unique<MapOrderBook>(expected_orders_);
         }
 
         void process(const BenchRequest& req, BenchmarkEventSink& sink) override {
@@ -90,7 +35,7 @@ class MapOrderBookAdapter final : public IBenchmarkBook {
 
     private:
         std::size_t expected_orders_ = 0;
-        std::unique_ptr<OrderBook> book_;
+        std::unique_ptr<MapOrderBook> book_;
 };
 
 class LadderPoolOrderBookAdapter final : public IBenchmarkBook {
@@ -107,7 +52,7 @@ public:
           expected_orders_(expected_orders) {}
 
     void reset() override {
-        book_ = std::make_unique<OrderBookLadderPool>(
+        book_ = std::make_unique<LadderPoolOrderBook>(
             min_price_,
             max_price_,
             tick_size_,
@@ -135,26 +80,5 @@ private:
     Price tick_size_ = 1;
     std::size_t expected_orders_ = 0;
 
-    std::unique_ptr<OrderBookLadderPool> book_;
+    std::unique_ptr<LadderPoolOrderBook> book_;
 };
-
-inline std::unique_ptr<IBenchmarkBook> make_benchmark_book(const std::string& impl, Price min_price, Price max_price, Price tick_size, std::size_t expected_orders) {
-    if (impl == "map") {
-        auto book = std::make_unique<MapOrderBookAdapter>(expected_orders);
-        return book;
-    }
-
-    if (impl == "ladder_pool") {
-        auto book = std::make_unique<LadderPoolOrderBookAdapter>(
-            min_price,
-            max_price,
-            tick_size,
-            expected_orders
-        );
-
-        book->reset();
-        return book;
-    }
-
-    throw std::invalid_argument("unknown implementation: " + impl);
-}

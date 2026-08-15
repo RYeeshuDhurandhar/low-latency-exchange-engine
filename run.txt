@@ -34,19 +34,42 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
 ./build/exchange_benchmark \
+  --layer book \
   --impl map \
   --all-workloads \
   --orders 10000000 \
   --seed 1 \
-  --csv results/results_map_v3_compare.csv
+  --csv results/results_map_book.csv
 
 
 ./build/exchange_benchmark \
+  --layer book \
   --impl ladder_pool \
   --all-workloads \
   --orders 10000000 \
   --seed 1 \
-  --csv results/results_ladder_pool_v3.csv
+  --csv results/results_ladder_pool_book.csv
+
+
+./build/exchange_benchmark \
+  --layer engine \
+  --impl map \
+  --all-workloads \
+  --orders 10000000 \
+  --seed 1 \
+  --csv results/results_map_engine.csv
+
+
+./build/exchange_benchmark \
+  --layer engine \
+  --impl ladder_pool \
+  --all-workloads \
+  --orders 10000000 \
+  --seed 1 \
+  --csv results/results_ladder_pool_engine.csv
+
+
+
 
 --------------------------------------------------------------------------------------------------------
 Debug mode:
@@ -59,3 +82,9 @@ cmake -S . -B build-debug \
 cmake --build build-debug
 
 ./build-debug/exchange_engine
+
+--------------------------------------------------------------------------------------------------------
+./build/exchange_benchmark --layer book --impl map
+./build/exchange_benchmark --layer book --impl ladder_pool
+./build/exchange_benchmark --layer engine --impl map
+./build/exchange_benchmark --layer engine --impl ladder_pool

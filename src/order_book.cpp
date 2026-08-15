@@ -1,4 +1,4 @@
-#include "order_book.hpp"
+#include "map_order_book.hpp"
 
 #include <cstddef>
 #include <algorithm>
@@ -6,13 +6,13 @@
 #include <iostream>
 #include <type_traits>
 
-OrderBook::OrderBook(std::size_t expected_orders) {
+MapOrderBook::MapOrderBook(std::size_t expected_orders) {
     if(expected_orders > 0) {
         order_lookup_.reserve(expected_orders);
     }
 }
 
-std::vector<Event> OrderBook::submit(const OrderRequest& req) {
+std::vector<Event> MapOrderBook::submit(const OrderRequest& req) {
     std::vector<Event> events;
     events.reserve(4);          // Generally enough for common requests
 
@@ -34,7 +34,7 @@ std::vector<Event> OrderBook::submit(const OrderRequest& req) {
     return events;
 }
 
-std::vector<Event> OrderBook::submit(const NewOrderRequest& req) {
+std::vector<Event> MapOrderBook::submit(const NewOrderRequest& req) {
     std::vector<Event> events;
     events.reserve(4);
 
@@ -43,7 +43,7 @@ std::vector<Event> OrderBook::submit(const NewOrderRequest& req) {
     return events;
 }
 
-std::vector<Event> OrderBook::submit(const ModifyOrderRequest& req) {
+std::vector<Event> MapOrderBook::submit(const ModifyOrderRequest& req) {
     std::vector<Event> events;
     events.reserve(4);
 
@@ -52,7 +52,7 @@ std::vector<Event> OrderBook::submit(const ModifyOrderRequest& req) {
     return events;
 }
 
-std::vector<Event> OrderBook::submit(const CancelOrderRequest& req) {
+std::vector<Event> MapOrderBook::submit(const CancelOrderRequest& req) {
     std::vector<Event> events;
     events.reserve(4);
 
@@ -61,7 +61,7 @@ std::vector<Event> OrderBook::submit(const CancelOrderRequest& req) {
     return events;
 }
 
-std::optional<Price> OrderBook::best_bid() const {
+std::optional<Price> MapOrderBook::best_bid() const {
     if(bids_.empty()) {
         return std::nullopt;
     }
@@ -69,7 +69,7 @@ std::optional<Price> OrderBook::best_bid() const {
     return bids_.begin()->first;
 }
 
-std::optional<Price> OrderBook::best_ask() const {
+std::optional<Price> MapOrderBook::best_ask() const {
     if(asks_.empty()) {
         return std::nullopt;
     }
@@ -77,7 +77,7 @@ std::optional<Price> OrderBook::best_ask() const {
     return asks_.begin()->first;
 }
 
-std::optional<Quantity> OrderBook::best_bid_quantity() const {
+std::optional<Quantity> MapOrderBook::best_bid_quantity() const {
     if(bids_.empty()) {
         return std::nullopt;
     }
@@ -85,7 +85,7 @@ std::optional<Quantity> OrderBook::best_bid_quantity() const {
     return bids_.begin()->second.total_quantity;
 }
 
-std::optional<Quantity> OrderBook::best_ask_quantity() const {
+std::optional<Quantity> MapOrderBook::best_ask_quantity() const {
     if(asks_.empty()) {
         return std::nullopt;
     }
@@ -93,11 +93,11 @@ std::optional<Quantity> OrderBook::best_ask_quantity() const {
     return asks_.begin()->second.total_quantity;
 }
 
-bool OrderBook::contains_order(OrderId order_id) const {
+bool MapOrderBook::contains_order(OrderId order_id) const {
     return order_lookup_.find(order_id) != order_lookup_.end();
 }
 
-bool OrderBook::is_valid_new_order_request(const NewOrderRequest& req, Reason& reason) {
+bool MapOrderBook::is_valid_new_order_request(const NewOrderRequest& req, Reason& reason) {
     reason = Reason::None;
 
     if(req.order_type == OrderType::Unknown) {
@@ -145,7 +145,7 @@ bool OrderBook::is_valid_new_order_request(const NewOrderRequest& req, Reason& r
  *      - side
  *      - symbol_id
 */
-bool OrderBook::is_valid_modify_order_request(const ModifyOrderRequest& req, Reason& reason) {
+bool MapOrderBook::is_valid_modify_order_request(const ModifyOrderRequest& req, Reason& reason) {
     reason = Reason::None;
 
     if(req.order_type == OrderType::Unknown) {
@@ -171,7 +171,7 @@ bool OrderBook::is_valid_modify_order_request(const ModifyOrderRequest& req, Rea
     return true;
 }
 
-bool OrderBook::is_valid_cancel_order_request(const CancelOrderRequest& req, Reason& reason) {
+bool MapOrderBook::is_valid_cancel_order_request(const CancelOrderRequest& req, Reason& reason) {
     reason = Reason::None;
 
     if(req.order_id == 0) {
@@ -182,7 +182,7 @@ bool OrderBook::is_valid_cancel_order_request(const CancelOrderRequest& req, Rea
     return true;
 }
 
-void OrderBook::handle_new_order(const NewOrderRequest& req, std::vector<Event>& events) {
+void MapOrderBook::handle_new_order(const NewOrderRequest& req, std::vector<Event>& events) {
     Reason reason;
     if(!is_valid_new_order_request(req, reason)) {
         events.push_back(
@@ -274,7 +274,7 @@ void OrderBook::handle_new_order(const NewOrderRequest& req, std::vector<Event>&
     return;
 }
 
-void OrderBook::match_buy(Order& incoming, std::vector<Event>& events, bool is_market) {
+void MapOrderBook::match_buy(Order& incoming, std::vector<Event>& events, bool is_market) {
     while(incoming.remaining_quantity > 0 && !asks_.empty()) {
         auto best_ask_it = asks_.begin();
         Price best_ask_price = best_ask_it->first;
@@ -323,7 +323,7 @@ void OrderBook::match_buy(Order& incoming, std::vector<Event>& events, bool is_m
 }
 
 
-void OrderBook::match_sell(Order& incoming, std::vector<Event>& events, bool is_market) {
+void MapOrderBook::match_sell(Order& incoming, std::vector<Event>& events, bool is_market) {
     while(incoming.remaining_quantity > 0 && !bids_.empty()) {
         auto best_bid_it = bids_.begin();
         Price best_bid_price = best_bid_it->first;
@@ -371,7 +371,7 @@ void OrderBook::match_sell(Order& incoming, std::vector<Event>& events, bool is_
     }
 }
 
-void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
+void MapOrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
     order.order_status = OrderStatus::Resting;
 
     if(order.side == Side::Buy) {
@@ -436,7 +436,7 @@ void OrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
     }
 }
 
-void OrderBook::handle_cancel_order(const CancelOrderRequest& req, std::vector<Event>& events) {
+void MapOrderBook::handle_cancel_order(const CancelOrderRequest& req, std::vector<Event>& events) {
     Order removed_order;
     Reason reason;
 
@@ -495,7 +495,7 @@ void OrderBook::handle_cancel_order(const CancelOrderRequest& req, std::vector<E
     return;
 }
 
-void OrderBook::handle_modify_order(const ModifyOrderRequest& req, std::vector<Event>& events) {
+void MapOrderBook::handle_modify_order(const ModifyOrderRequest& req, std::vector<Event>& events) {
     Reason reason;
     if(!is_valid_modify_order_request(req, reason)) {
         events.push_back(
@@ -569,7 +569,7 @@ void OrderBook::handle_modify_order(const ModifyOrderRequest& req, std::vector<E
     );
 }
 
-bool OrderBook::remove_order(OrderId order_id, Reason& reason, Order* removed_order) {
+bool MapOrderBook::remove_order(OrderId order_id, Reason& reason, Order* removed_order) {
     auto lookup_it = order_lookup_.find(order_id);
 
     const OrderLocation& order_location = lookup_it->second;
@@ -616,7 +616,7 @@ bool OrderBook::remove_order(OrderId order_id, Reason& reason, Order* removed_or
     return true;
 }
 
-bool OrderBook::check_invariants(InvariantViolation& violation) const {
+bool MapOrderBook::check_invariants(InvariantViolation& violation) const {
     uint64_t order_count_in_book = 0;
     violation = InvariantViolation::None;
     
@@ -769,7 +769,7 @@ bool OrderBook::check_invariants(InvariantViolation& violation) const {
     return true;
 }
 
-void OrderBook::debug_print(std::ostream& os) const {
+void MapOrderBook::debug_print(std::ostream& os) const {
     os << "\n\n========== ORDER BOOK ==========\n";
     os << "\nASKS:\n";
 

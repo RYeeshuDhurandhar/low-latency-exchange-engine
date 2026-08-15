@@ -5,9 +5,9 @@
 #include <vector>
 
 #include "benchmark_types.hpp"
-#include "order_book_adapter.hpp"
+#include "benchmark_common.hpp"
 
-BenchmarkResult run_benchmark(IBenchmarkBook& book, const std::vector<BenchRequest>& trace, const std::string& workload_name);
+BenchmarkResult run_benchmark(IBenchmarkBook& book, const std::vector<BenchRequest>& trace, const std::string& workload_name, BenchmarkLayer layer);
 
 void print_human_readable(const BenchmarkResult& result);
 

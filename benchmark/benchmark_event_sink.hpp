@@ -11,6 +11,8 @@ struct BenchmarkEventSink {
     std::uint64_t cancelled = 0;
     std::uint64_t modified = 0;
     std::uint64_t rested = 0;
+    std::uint64_t book_updated = 0;
+    std::uint64_t total_events = 0;
 
     void reset() {
         trades = 0;
@@ -19,9 +21,13 @@ struct BenchmarkEventSink {
         cancelled = 0;
         modified = 0;
         rested = 0;
+        book_updated = 0;
+        total_events = 0;
     }
 
     void on_event(const Event& event) {
+        ++total_events;
+
         switch(event.event_type) {
             case EventType::Trade:
                 trades++;
@@ -45,6 +51,10 @@ struct BenchmarkEventSink {
 
             case EventType::OrderRested:
                 rested++;
+                break;
+
+            case EventType::BookUpdated:
+                book_updated++;
                 break;
 
             default:

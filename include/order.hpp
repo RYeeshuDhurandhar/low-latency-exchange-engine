@@ -11,7 +11,7 @@ struct Order {
     Price price = 0;
     Quantity original_quantity = 0;
     Quantity remaining_quantity = 0;
-    SequenceNumber sequence_number = 0;
+    SequenceNumber sequence_number = 0;             // Sequence of accepted new/resting order used for FIFO/time priority
     OrderStatus order_status = OrderStatus::Unknown;
 };
 
@@ -25,6 +25,8 @@ struct NewOrderRequest {
 
     Price price = 0;
     Quantity quantity = 0;
+
+    SequenceNumber input_sequence_number = 0;       // Input sequence number: official processing order assigned by MatchingEngine
 };
 
 struct ModifyOrderRequest {
@@ -33,11 +35,15 @@ struct ModifyOrderRequest {
 
     Price price = 0;
     Quantity quantity = 0;
+
+    SequenceNumber input_sequence_number = 0;
 };
 
 
 struct CancelOrderRequest {
     OrderId order_id = 0;
+
+    SequenceNumber input_sequence_number = 0;
 };
 
 // Common wrapper type for mixed request streams/logs/replay

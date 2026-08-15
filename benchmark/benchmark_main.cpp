@@ -10,12 +10,14 @@
 #include <filesystem>
 
 #include "benchmark_runner.hpp"
+#include "benchmark_target_factory.hpp"
 #include "benchmark_types.hpp"
-#include "order_book_adapter.hpp"
+#include "workload_generator.hpp"
 
 namespace {
     
 struct CliOptions {
+    BenchmarkLayer layer = BenchmarkLayer::Book;
     std::string impl = "map";
     std::string workload = "mostly_adds";
     bool all_workloads = false;
@@ -36,6 +38,7 @@ void print_usage(const char* argv0) {
         << "Usage:\n"
         << "  " << argv0 << " [options]\n\n"
         << "Options:\n"
+        << "  --layer <name>             Layer: book, engine\n"
         << "  --impl <name>              Implementation: map, ladder_pool\n"
         << "  --workload <name>          Workload name\n"
         << "  --all-workloads            Run all workloads\n"
@@ -87,6 +90,8 @@ CliOptions parse_cli(int argc, char** argv) {
         if (arg == "--help") {
             print_usage(argv[0]);
             std::exit(0);
+        } else if (arg == "--layer") {
+            options.layer = parse_benchmark_layer(need_value(arg));
         } else if (arg == "--impl") {
             options.impl = need_value(arg);
         } else if (arg == "--workload") {
@@ -171,7 +176,8 @@ int main(int argc, char** argv) {
 
             std::vector<BenchRequest> trace = generate_workload(config);
 
-            std::unique_ptr<IBenchmarkBook> book = make_benchmark_book(
+            std::unique_ptr<IBenchmarkBook> target = make_benchmark_target(
+                options.layer,
                 options.impl,
                 config.min_price,
                 config.max_price,
@@ -179,7 +185,7 @@ int main(int argc, char** argv) {
                 trace.size()
             );
 
-            BenchmarkResult result = run_benchmark(*book, trace, workload_name);
+            BenchmarkResult result = run_benchmark(*target, trace, workload_name, options.layer);
 
             print_human_readable(result);
             std::cout << '\n';

@@ -36,6 +36,7 @@ enum class EventType: uint8_t {
     OrderRested,                    // remaining limit order inserted into book
     UnfilledMarketOrderCancelled,   // remaining market order cancelled
     Trade,                          // two orders matched
+    BookUpdated,                    // Produced by MatchingEngine when visible book state changed. It is Engine level event, not book level
 };
 
 enum class RequestType: uint8_t {

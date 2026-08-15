@@ -11,21 +11,21 @@
 #include "order.hpp"
 #include "event.hpp"
 
-class OrderBook {
+class MapOrderBook {
     public:
-        explicit OrderBook(std::size_t expected_orders = 0);
+        explicit MapOrderBook(std::size_t expected_orders = 0);
 
         // Disable copy constructor and copy assignment
         // Reason: copied order_lookup_ might contain iterators pointing into the old book’s lists, not the copied book’s lists, which is unsafe
-        OrderBook(const OrderBook&) = delete;
-        OrderBook& operator = (const OrderBook&) = delete;
+        MapOrderBook(const MapOrderBook&) = delete;
+        MapOrderBook& operator = (const MapOrderBook&) = delete;
 
         std::vector<Event> submit(const OrderRequest& req);
         std::vector<Event> submit(const NewOrderRequest& req);
         std::vector<Event> submit(const ModifyOrderRequest& req);
         std::vector<Event> submit(const CancelOrderRequest& req);
 
-        // Constant member functions: can not modify OrderBook object, i.e., data structures of this class (asks_, bids_, order_lookup_, next_sequence_number_) 
+        // Constant member functions: can not modify MapOrderBook object, i.e., data structures of this class (asks_, bids_, order_lookup_, next_sequence_number_) 
         std::optional<Price> best_bid() const;
         std::optional<Price> best_ask() const;
 

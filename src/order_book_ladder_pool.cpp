@@ -1,4 +1,4 @@
-#include "order_book_ladder_pool.hpp"
+#include "ladder_pool_order_book.hpp"
 
 #include <cstddef>
 #include <algorithm>
@@ -8,7 +8,7 @@
 #include <variant>
 #include <utility>
 
-OrderBookLadderPool::OrderBookLadderPool(
+LadderPoolOrderBook::LadderPoolOrderBook(
     Price min_price, 
     Price max_price, 
     Price tick_size, 
@@ -44,7 +44,7 @@ OrderBookLadderPool::OrderBookLadderPool(
     }
 }
 
-std::vector<Event> OrderBookLadderPool::submit(const OrderRequest& req) {
+std::vector<Event> LadderPoolOrderBook::submit(const OrderRequest& req) {
     std::vector<Event> events;
     events.reserve(4);          // Generally enough for common requests
 
@@ -66,7 +66,7 @@ std::vector<Event> OrderBookLadderPool::submit(const OrderRequest& req) {
     return events;
 }
 
-std::vector<Event> OrderBookLadderPool::submit(const NewOrderRequest& req) {
+std::vector<Event> LadderPoolOrderBook::submit(const NewOrderRequest& req) {
     std::vector<Event> events;
     events.reserve(4);
 
@@ -75,7 +75,7 @@ std::vector<Event> OrderBookLadderPool::submit(const NewOrderRequest& req) {
     return events;
 }
 
-std::vector<Event> OrderBookLadderPool::submit(const ModifyOrderRequest& req) {
+std::vector<Event> LadderPoolOrderBook::submit(const ModifyOrderRequest& req) {
     std::vector<Event> events;
     events.reserve(4);
 
@@ -84,7 +84,7 @@ std::vector<Event> OrderBookLadderPool::submit(const ModifyOrderRequest& req) {
     return events;
 }
 
-std::vector<Event> OrderBookLadderPool::submit(const CancelOrderRequest& req) {
+std::vector<Event> LadderPoolOrderBook::submit(const CancelOrderRequest& req) {
     std::vector<Event> events;
     events.reserve(4);
 
@@ -93,7 +93,7 @@ std::vector<Event> OrderBookLadderPool::submit(const CancelOrderRequest& req) {
     return events;
 }
 
-std::optional<Price> OrderBookLadderPool::best_bid() const {
+std::optional<Price> LadderPoolOrderBook::best_bid() const {
     if(best_bid_level_index_ == invalid_level) {
         return std::nullopt;
     }
@@ -101,7 +101,7 @@ std::optional<Price> OrderBookLadderPool::best_bid() const {
     return level_index_to_price(best_bid_level_index_);
 }
 
-std::optional<Price> OrderBookLadderPool::best_ask() const {
+std::optional<Price> LadderPoolOrderBook::best_ask() const {
     if(best_ask_level_index_ == invalid_level) {
         return std::nullopt;
     }
@@ -109,7 +109,7 @@ std::optional<Price> OrderBookLadderPool::best_ask() const {
     return level_index_to_price(best_ask_level_index_);
 }
 
-std::optional<Quantity> OrderBookLadderPool::best_bid_quantity() const {
+std::optional<Quantity> LadderPoolOrderBook::best_bid_quantity() const {
     if(best_bid_level_index_ == invalid_level) {
         return std::nullopt;
     }
@@ -117,7 +117,7 @@ std::optional<Quantity> OrderBookLadderPool::best_bid_quantity() const {
     return bid_levels_[best_bid_level_index_].total_quantity;
 }
 
-std::optional<Quantity> OrderBookLadderPool::best_ask_quantity() const {
+std::optional<Quantity> LadderPoolOrderBook::best_ask_quantity() const {
     if(best_ask_level_index_ == invalid_level) {
         return std::nullopt;
     }
@@ -125,11 +125,11 @@ std::optional<Quantity> OrderBookLadderPool::best_ask_quantity() const {
     return ask_levels_[best_ask_level_index_].total_quantity;
 }
 
-bool OrderBookLadderPool::contains_order(OrderId order_id) const {
+bool LadderPoolOrderBook::contains_order(OrderId order_id) const {
     return order_lookup_.find(order_id) != order_lookup_.end();
 }
 
-bool OrderBookLadderPool::price_to_level_index(Price price, PriceLevelIndex& level_index) const {
+bool LadderPoolOrderBook::price_to_level_index(Price price, PriceLevelIndex& level_index) const {
     if (price < min_price_ || price > max_price_) {
         return false;
     }
@@ -143,7 +143,7 @@ bool OrderBookLadderPool::price_to_level_index(Price price, PriceLevelIndex& lev
     return level_index < level_count_;
 }
 
-Price OrderBookLadderPool::level_index_to_price(PriceLevelIndex level_index) const {
+Price LadderPoolOrderBook::level_index_to_price(PriceLevelIndex level_index) const {
     if (level_index >= level_count_) {
         throw std::out_of_range("price-level index is out of range");
     }
@@ -151,7 +151,7 @@ Price OrderBookLadderPool::level_index_to_price(PriceLevelIndex level_index) con
     return min_price_ + static_cast<Price>(level_index) * tick_size_;
 }
 
-OrderBookLadderPool::NodeIndex OrderBookLadderPool::allocate_node(Order&& order) {
+LadderPoolOrderBook::NodeIndex LadderPoolOrderBook::allocate_node(Order&& order) {
     if(free_head_ != invalid_node) {
         const NodeIndex node_index = free_head_;
 
@@ -159,7 +159,7 @@ OrderBookLadderPool::NodeIndex OrderBookLadderPool::allocate_node(Order&& order)
 
         free_head_ = node.next_free;
 
-        node.order = std::move(order);
+        node.order = std::move(order);      // actual move happens here!
         node.prev = invalid_node;
         node.next = invalid_node;
         node.next_free = invalid_node;
@@ -172,7 +172,7 @@ OrderBookLadderPool::NodeIndex OrderBookLadderPool::allocate_node(Order&& order)
 
     nodes_.push_back(
         OrderNode{
-            .order = std::move(order),
+            .order = std::move(order),      // OR actual move happens here!
             .prev = invalid_node,
             .next = invalid_node,
             .next_free = invalid_node,
@@ -183,7 +183,7 @@ OrderBookLadderPool::NodeIndex OrderBookLadderPool::allocate_node(Order&& order)
     return node_index;
 }
 
-void OrderBookLadderPool::free_node(NodeIndex node_index) {
+void LadderPoolOrderBook::free_node(NodeIndex node_index) {
     OrderNode& node = nodes_[node_index];
 
     node.prev = invalid_node;
@@ -194,7 +194,7 @@ void OrderBookLadderPool::free_node(NodeIndex node_index) {
     free_head_ = node_index;
 }
 
-void OrderBookLadderPool::push_back_level(PriceLevel& level, NodeIndex node_index) {
+void LadderPoolOrderBook::push_back_level(PriceLevel& level, NodeIndex node_index) {
     OrderNode& node = nodes_[node_index];
     node.prev = level.tail;
     node.next = invalid_node;
@@ -208,7 +208,7 @@ void OrderBookLadderPool::push_back_level(PriceLevel& level, NodeIndex node_inde
     level.tail = node_index;
 }
 
-void OrderBookLadderPool::unlink_from_level(PriceLevel& level, NodeIndex node_index) {
+void LadderPoolOrderBook::unlink_from_level(PriceLevel& level, NodeIndex node_index) {
     OrderNode& node = nodes_[node_index];
 
     if(node.prev != invalid_node) {
@@ -227,7 +227,7 @@ void OrderBookLadderPool::unlink_from_level(PriceLevel& level, NodeIndex node_in
     node.next = invalid_node;
 }
 
-void OrderBookLadderPool::refresh_best_bid_from(PriceLevelIndex start_level_index) {
+void LadderPoolOrderBook::refresh_best_bid_from(PriceLevelIndex start_level_index) {
     if(level_count_ == 0) {
         best_bid_level_index_ = invalid_level;
         return;
@@ -251,7 +251,7 @@ void OrderBookLadderPool::refresh_best_bid_from(PriceLevelIndex start_level_inde
     best_bid_level_index_ = invalid_level;
 }
 
-void OrderBookLadderPool::refresh_best_ask_from(PriceLevelIndex start_level_index) {
+void LadderPoolOrderBook::refresh_best_ask_from(PriceLevelIndex start_level_index) {
     if (start_level_index >= level_count_) {
         best_ask_level_index_ = invalid_level;
         return;
@@ -267,7 +267,7 @@ void OrderBookLadderPool::refresh_best_ask_from(PriceLevelIndex start_level_inde
     best_ask_level_index_ = invalid_level;
 }
 
-bool OrderBookLadderPool::is_valid_new_order_request(const NewOrderRequest& req, Reason& reason) {
+bool LadderPoolOrderBook::is_valid_new_order_request(const NewOrderRequest& req, Reason& reason) {
     reason = Reason::None;
 
     if(req.order_type == OrderType::Unknown) {
@@ -315,7 +315,7 @@ bool OrderBookLadderPool::is_valid_new_order_request(const NewOrderRequest& req,
  *      - side
  *      - symbol_id
 */
-bool OrderBookLadderPool::is_valid_modify_order_request(const ModifyOrderRequest& req, Reason& reason) {
+bool LadderPoolOrderBook::is_valid_modify_order_request(const ModifyOrderRequest& req, Reason& reason) {
     reason = Reason::None;
 
     if(req.order_type == OrderType::Unknown) {
@@ -341,7 +341,7 @@ bool OrderBookLadderPool::is_valid_modify_order_request(const ModifyOrderRequest
     return true;
 }
 
-bool OrderBookLadderPool::is_valid_cancel_order_request(const CancelOrderRequest& req, Reason& reason) {
+bool LadderPoolOrderBook::is_valid_cancel_order_request(const CancelOrderRequest& req, Reason& reason) {
     reason = Reason::None;
 
     if(req.order_id == 0) {
@@ -352,7 +352,7 @@ bool OrderBookLadderPool::is_valid_cancel_order_request(const CancelOrderRequest
     return true;
 }
 
-void OrderBookLadderPool::handle_new_order(const NewOrderRequest& req, std::vector<Event>& events) {
+void LadderPoolOrderBook::handle_new_order(const NewOrderRequest& req, std::vector<Event>& events) {
     Reason reason;
     if(!is_valid_new_order_request(req, reason)) {
         events.push_back(
@@ -467,7 +467,7 @@ void OrderBookLadderPool::handle_new_order(const NewOrderRequest& req, std::vect
     return;
 }
 
-void OrderBookLadderPool::match_buy(Order& incoming, std::vector<Event>& events, bool is_market) {
+void LadderPoolOrderBook::match_buy(Order& incoming, std::vector<Event>& events, bool is_market) {
     while(incoming.remaining_quantity > 0 && best_ask_level_index_ != invalid_level) {
         const PriceLevelIndex ask_level_index = best_ask_level_index_;
         const Price best_ask_price = level_index_to_price(ask_level_index);
@@ -517,7 +517,7 @@ void OrderBookLadderPool::match_buy(Order& incoming, std::vector<Event>& events,
     }
 }
 
-void OrderBookLadderPool::match_sell(Order& incoming, std::vector<Event>& events, bool is_market) {
+void LadderPoolOrderBook::match_sell(Order& incoming, std::vector<Event>& events, bool is_market) {
     while(incoming.remaining_quantity > 0 && best_bid_level_index_ != invalid_level) {
         const PriceLevelIndex bid_level_index = best_bid_level_index_;
         const Price best_bid_price = level_index_to_price(bid_level_index);
@@ -567,7 +567,7 @@ void OrderBookLadderPool::match_sell(Order& incoming, std::vector<Event>& events
     }
 }
 
-void OrderBookLadderPool::add_resting_order(Order&& order, std::vector<Event>& events) {
+void LadderPoolOrderBook::add_resting_order(Order&& order, std::vector<Event>& events) {
     PriceLevelIndex level_index = invalid_level;
 
     if(!price_to_level_index(order.price, level_index)) {
@@ -639,7 +639,7 @@ void OrderBookLadderPool::add_resting_order(Order&& order, std::vector<Event>& e
     );
 }
 
-void OrderBookLadderPool::handle_cancel_order(const CancelOrderRequest& req, std::vector<Event>& events) {
+void LadderPoolOrderBook::handle_cancel_order(const CancelOrderRequest& req, std::vector<Event>& events) {
     Order removed_order;
     Reason reason;
 
@@ -698,7 +698,7 @@ void OrderBookLadderPool::handle_cancel_order(const CancelOrderRequest& req, std
     return;
 }
 
-void OrderBookLadderPool::handle_modify_order(const ModifyOrderRequest& req, std::vector<Event>& events) {
+void LadderPoolOrderBook::handle_modify_order(const ModifyOrderRequest& req, std::vector<Event>& events) {
     Reason reason;
     if(!is_valid_modify_order_request(req, reason)) {
         events.push_back(
@@ -810,7 +810,7 @@ void OrderBookLadderPool::handle_modify_order(const ModifyOrderRequest& req, std
     );
 }
 
-bool OrderBookLadderPool::remove_order(OrderId order_id, Reason& reason, Order* removed_order) {
+bool LadderPoolOrderBook::remove_order(OrderId order_id, Reason& reason, Order* removed_order) {
 
     auto lookup_it = order_lookup_.find(order_id);
     if(lookup_it == order_lookup_.end()) {
@@ -861,7 +861,7 @@ bool OrderBookLadderPool::remove_order(OrderId order_id, Reason& reason, Order* 
     return true;
 }
 
-bool OrderBookLadderPool::check_invariants(InvariantViolation& violation) const {
+bool LadderPoolOrderBook::check_invariants(InvariantViolation& violation) const {
     violation = InvariantViolation::None;
 
     std::size_t order_count_in_levels = 0;
@@ -1011,7 +1011,7 @@ bool OrderBookLadderPool::check_invariants(InvariantViolation& violation) const 
     return true;
 }
 
-void OrderBookLadderPool::debug_print(std::ostream& os) const {
+void LadderPoolOrderBook::debug_print(std::ostream& os) const {
     os << "=== Ladder Pool Order Book ===\n";
 
     os << "ASKS:\n";

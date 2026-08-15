@@ -45,22 +45,23 @@ void warmup(IBenchmarkBook& book, const std::vector<BenchRequest>& trace) {
 }   // namespace
 
 BenchmarkResult run_benchmark(
-    IBenchmarkBook& book,
+    IBenchmarkBook& target,
     const std::vector<BenchRequest>& trace,
-    const std::string& workload_name
+    const std::string& workload_name,
+    BenchmarkLayer layer
 ) {
     if (trace.empty()) {
         throw std::invalid_argument("benchmark trace is empty");
     }
 
-    warmup(book, trace);
+    warmup(target, trace);
 
     BenchmarkEventSink sink;
 
     std::vector<std::uint64_t> latencies;
     latencies.resize(trace.size());
 
-    book.reset();
+    target.reset();
     sink.reset();
 
     // Count allocations only during actual book processing.
@@ -72,7 +73,7 @@ BenchmarkResult run_benchmark(
     for (std::size_t i = 0; i < trace.size(); ++i) {
         auto op_start = Clock::now();
 
-        book.process(trace[i], sink);
+        target.process(trace[i], sink);
 
         auto op_end = Clock::now();
 
@@ -83,10 +84,8 @@ BenchmarkResult run_benchmark(
 
     std::uint64_t total_ns = ns_between(total_start, total_end);
 
-    std::uint64_t alloc_count =
-        g_alloc_stats.alloc_count.load(std::memory_order_relaxed);
-    std::uint64_t alloc_bytes =
-        g_alloc_stats.alloc_bytes.load(std::memory_order_relaxed);
+    std::uint64_t alloc_count = g_alloc_stats.alloc_count.load(std::memory_order_relaxed);
+    std::uint64_t alloc_bytes = g_alloc_stats.alloc_bytes.load(std::memory_order_relaxed);
 
     std::sort(latencies.begin(), latencies.end());
 
@@ -98,7 +97,8 @@ BenchmarkResult run_benchmark(
 
     BenchmarkResult result;
 
-    result.impl_name = book.name();
+    result.layer = layer;
+    result.impl_name = target.name();
     result.workload_name = workload_name;
 
     result.operations = static_cast<std::uint64_t>(trace.size());
@@ -124,6 +124,8 @@ BenchmarkResult run_benchmark(
     result.cancelled = sink.cancelled;
     result.modified = sink.modified;
     result.rested = sink.rested;
+    result.book_updated = sink.book_updated;
+    result.total_events = sink.total_events;
 
     return result;
 }
@@ -132,6 +134,7 @@ void print_human_readable(const BenchmarkResult& result) {
     double throughput_mops =
         result.throughput_ops_per_sec / 1'000'000.0;
 
+    std::cout << "Layer: " << benchmark_layer_to_string(result.layer) << '\n';
     std::cout << "impl: " << result.impl_name << '\n';
     std::cout << "workload: " << result.workload_name << '\n';
     std::cout << "ops: " << result.operations << '\n';
@@ -155,11 +158,13 @@ void print_human_readable(const BenchmarkResult& result) {
     std::cout << "rejected: " << result.rejected << '\n';
     std::cout << "cancelled: " << result.cancelled << '\n';
     std::cout << "modified: " << result.modified << '\n';
-    std::cout << "rested: " << result.rested << '\n';
+    std::cout << "book_updated: " << result.book_updated << '\n';
+    std::cout << "total_events: " << result.total_events << '\n';
 }
 
 void write_csv_header(std::ostream& os) {
     os
+        << "layer,"
         << "impl,"
         << "workload,"
         << "ops,"
@@ -178,12 +183,15 @@ void write_csv_header(std::ostream& os) {
         << "rejected,"
         << "cancelled,"
         << "modified,"
-        << "rested"
+        << "rested,"
+        << "book_updated,"
+        << "total_events"
         << '\n';
 }
 
 void write_csv_row(std::ostream& os, const BenchmarkResult& result) {
     os
+        << benchmark_layer_to_string(result.layer) << ','
         << result.impl_name << ','
         << result.workload_name << ','
         << result.operations << ','
@@ -203,6 +211,8 @@ void write_csv_row(std::ostream& os, const BenchmarkResult& result) {
         << result.rejected << ','
         << result.cancelled << ','
         << result.modified << ','
-        << result.rested
+        << result.rested << ','
+        << result.book_updated << ','
+        << result.total_events
         << '\n';
 }

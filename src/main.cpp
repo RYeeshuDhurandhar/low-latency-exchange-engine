@@ -1,5 +1,6 @@
-#include "order_book.hpp"
-#include "order_book_ladder_pool.hpp"
+#include "map_order_book.hpp"
+#include "ladder_pool_order_book.hpp"
+#include "matching_engine.hpp"
 
 #include <iostream>
 
@@ -19,6 +20,8 @@ const char* event_type_to_string(EventType event_type) {
             return "TRADE";
         case EventType::UnfilledMarketOrderCancelled:
             return "UNFILLED_MARKET_ORDER_CANCELLED";
+        case EventType::BookUpdated:
+            return "BOOK_UPDATED";
         case EventType::Unknown:
             return "UNKNOWN";
     }
@@ -150,7 +153,12 @@ const char* invariant_violation_to_string(InvariantViolation violation) {
 
 void print_events(const std::vector<Event>& events) {
     for(const Event& event : events) {
-        std::cout<<"\n"<<event_type_to_string(event.event_type)<<", ";
+        std::cout
+            << "\n"
+            << event_type_to_string(event.event_type)
+            << ", input_seq: "
+            << event.input_sequence_number
+            << ", ";
 
         if(event.event_type == EventType::OrderAccepted || event.event_type == EventType::OrderModified || event.event_type == EventType::OrderCancelled || event.event_type == EventType::OrderRested) {
             std::cout
@@ -192,15 +200,37 @@ void print_events(const std::vector<Event>& events) {
             <<"quantity: "<<event.quantity<<", "
             <<"price: "<<event.price;
         }
+
+        if (event.event_type == EventType::BookUpdated) {
+            std::cout
+                << "input_seq: " << event.input_sequence_number << ", "
+                << "symbol_id: " << event.symbol_id << ", ";
+
+            if (event.has_best_bid) {
+                std::cout
+                    << "best_bid: " << event.best_bid
+                    << ", bid_qty: " << event.best_bid_quantity << ", ";
+            } else {
+                std::cout << "best_bid: none, ";
+            }
+
+            if (event.has_best_ask) {
+                std::cout
+                    << "best_ask: " << event.best_ask
+                    << ", ask_qty: " << event.best_ask_quantity;
+            } else {
+                std::cout << "best_ask: none";
+            }
+        }
     }
 }
 
-template <typename Book>
-void print_top_of_book(const Book& book) {
+template <typename Engine>
+void print_top_of_book(const Engine& engine) {
     std::cout << "\n\nTop of book:\n";
 
-    const auto best_bid = book.best_bid();
-    const auto best_bid_quantity = book.best_bid_quantity();
+    const auto best_bid = engine.best_bid();
+    const auto best_bid_quantity = engine.best_bid_quantity();
 
     if (best_bid && best_bid_quantity) {
         std::cout
@@ -211,8 +241,8 @@ void print_top_of_book(const Book& book) {
         std::cout << "Best bid: none\n";
     }
 
-    const auto best_ask = book.best_ask();
-    const auto best_ask_quantity = book.best_ask_quantity();
+    const auto best_ask = engine.best_ask();
+    const auto best_ask_quantity = engine.best_ask_quantity();
 
     if (best_ask && best_ask_quantity) {
         std::cout
@@ -226,8 +256,8 @@ void print_top_of_book(const Book& book) {
     std::cout << '\n';
 }
 
-template <typename Book>
-void run_scenario(Book& book, const char* implementation_name) {
+template <typename Engine>
+void run_scenario(Engine& engine, const char* implementation_name) {
     constexpr SymbolId AAPL = 1;
 
     std::cout
@@ -237,7 +267,7 @@ void run_scenario(Book& book, const char* implementation_name) {
         << "\n========================================\n";
 
     std::cout << "\nAdd SELL S1: 40 @ 100.50\n";
-    std::vector<Event> events = book.submit(
+    std::vector<Event> events = engine.process(
         NewOrderRequest{
             .order_type = OrderType::Limit,
             .order_id = 1,
@@ -253,7 +283,7 @@ void run_scenario(Book& book, const char* implementation_name) {
 
     std::cout << "\n\nAdd SELL S2: 100 @ 100.75\n";
     print_events(
-        book.submit(
+        engine.process(
             NewOrderRequest{
                 .order_type = OrderType::Limit,
                 .order_id = 2,
@@ -267,7 +297,7 @@ void run_scenario(Book& book, const char* implementation_name) {
 
     std::cout << "\n\nAdd BUY B1: 100 @ 100.10\n";
     print_events(
-        book.submit(
+        engine.process(
             NewOrderRequest{
                 .order_type = OrderType::Limit,
                 .order_id = 3,
@@ -281,7 +311,7 @@ void run_scenario(Book& book, const char* implementation_name) {
 
     std::cout << "\n\nModify BUY B1: 100 @ 100.00\n";
     print_events(
-        book.submit(
+        engine.process(
             ModifyOrderRequest{
                 .order_type = OrderType::Limit,
                 .order_id = 3,
@@ -291,11 +321,11 @@ void run_scenario(Book& book, const char* implementation_name) {
         )
     );
 
-    print_top_of_book(book);
+    print_top_of_book(engine);
 
     std::cout << "\nIncoming BUY B2: 120 @ 100.75\n";
     print_events(
-        book.submit(
+        engine.process(
             NewOrderRequest{
                 .order_type = OrderType::Limit,
                 .order_id = 4,
@@ -307,21 +337,21 @@ void run_scenario(Book& book, const char* implementation_name) {
         )
     );
 
-    print_top_of_book(book);
+    print_top_of_book(engine);
 
     std::cout << "\nCancel B1 order_id=3\n";
     print_events(
-        book.submit(
+        engine.process(
             CancelOrderRequest{
                 .order_id = 3,
             }
         )
     );
 
-    print_top_of_book(book);
+    print_top_of_book(engine);
 
     InvariantViolation violation = InvariantViolation::None;
-    const bool invariants_ok = book.check_invariants(violation);
+    const bool invariants_ok = engine.check_invariants(violation);
 
     std::cout
         << "\nInvariants OK? "
@@ -330,21 +360,33 @@ void run_scenario(Book& book, const char* implementation_name) {
         << invariant_violation_to_string(violation)
         << '\n';
 
-    book.debug_print(std::cout);
+    engine.debug_print(std::cout);
 }
 
 int main() {
-    OrderBook map_book(20);
+    // MapOrderBook map_book(20);
 
-    OrderBookLadderPool ladder_pool_book(
+    // LadderPoolOrderBook ladder_pool_book(
+    //     9000,   // minimum price
+    //     11000,  // maximum price
+    //     1,      // tick size
+    //     20      // expected orders
+    // );
+
+    // run_scenario(map_book, "Map + list order book");
+    // run_scenario(ladder_pool_book, "Price ladder + object pool");
+
+    MatchingEngine<MapOrderBook> map_engine(20);
+
+    MatchingEngine<LadderPoolOrderBook> ladder_pool_engine(
         9000,   // minimum price
         11000,  // maximum price
         1,      // tick size
         20      // expected orders
     );
 
-    run_scenario(map_book, "Map + list order book");
-    run_scenario(ladder_pool_book, "Price ladder + object pool");
+    run_scenario(map_engine, "MatchingEngine + Map + list order book");
+    run_scenario(ladder_pool_engine, "MatchingEngine + Price ladder + object pool");
 
     return 0;
 }

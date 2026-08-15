@@ -6,6 +6,10 @@ struct Event {
     EventType event_type = EventType::Unknown;
     RequestType request_type = RequestType::Unknown;
 
+    // Input request sequence number assigned by MatchingEngine.
+    // All output events caused by the same input request get the same value.
+    SequenceNumber input_sequence_number = 0;
+
     // Used for single-order events:
     // Accepted, Cancelled, Modified, Rejected, Rested/AddedToBook
     OrderId order_id = 0;
@@ -24,4 +28,13 @@ struct Event {
     Price price = 0;
     
     Reason reason = Reason::None;
+
+    // Only used by EventType::BookUpdated
+    bool has_best_bid = false;
+    Price best_bid = 0;
+    Quantity best_bid_quantity = 0;
+
+    bool has_best_ask = false;
+    Price best_ask = 0;
+    Quantity best_ask_quantity = 0;
 };

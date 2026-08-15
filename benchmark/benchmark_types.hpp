@@ -5,6 +5,11 @@
 
 #include "types.hpp"
 
+enum class BenchmarkLayer {
+    Book,
+    Engine
+};
+
 enum class BenchOpType : uint8_t {
     Unknown,
     NewLimit,
@@ -44,6 +49,7 @@ struct WorkloadConfig {
 };
 
 struct BenchmarkResult {
+    BenchmarkLayer layer = BenchmarkLayer::Book;
     std::string impl_name;
     std::string workload_name;
 
@@ -68,4 +74,6 @@ struct BenchmarkResult {
     std::int64_t cancelled = 0;
     std::int64_t modified = 0;
     std::int64_t rested = 0;
+    std::uint64_t book_updated = 0;
+    std::uint64_t total_events = 0;
 };
