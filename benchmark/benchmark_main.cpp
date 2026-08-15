@@ -18,7 +18,7 @@ namespace {
     
 struct CliOptions {
     BenchmarkLayer layer = BenchmarkLayer::Book;
-    std::string impl = "map";
+    std::string book_type = "map";
     std::string workload = "mostly_adds";
     bool all_workloads = false;
 
@@ -39,7 +39,7 @@ void print_usage(const char* argv0) {
         << "  " << argv0 << " [options]\n\n"
         << "Options:\n"
         << "  --layer <name>             Layer: book, engine\n"
-        << "  --impl <name>              Implementation: map, ladder_pool\n"
+        << "  --book_type <name>              Implementation: map, ladder_pool\n"
         << "  --workload <name>          Workload name\n"
         << "  --all-workloads            Run all workloads\n"
         << "  --orders <N>               Number of operations\n"
@@ -92,8 +92,8 @@ CliOptions parse_cli(int argc, char** argv) {
             std::exit(0);
         } else if (arg == "--layer") {
             options.layer = parse_benchmark_layer(need_value(arg));
-        } else if (arg == "--impl") {
-            options.impl = need_value(arg);
+        } else if (arg == "--book_type") {
+            options.book_type = need_value(arg);
         } else if (arg == "--workload") {
             options.workload = need_value(arg);
         } else if (arg == "--all-workloads") {
@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
 
             std::unique_ptr<IBenchmarkBook> target = make_benchmark_target(
                 options.layer,
-                options.impl,
+                options.book_type,
                 config.min_price,
                 config.max_price,
                 config.tick_size,

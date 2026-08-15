@@ -1,4 +1,4 @@
-layer,impl,workload,ops,total_ns,throughput_ops_sec,min_ns,mean_ns,p50_ns,p90_ns,p99_ns,max_ns,alloc_count,alloc_bytes,trades,accepted,rejected,cancelled,modified,rested,book_updated,total_events
+layer,book_type,workload,ops,total_ns,throughput_ops_sec,min_ns,mean_ns,p50_ns,p90_ns,p99_ns,max_ns,alloc_count,alloc_bytes,trades,accepted,rejected,cancelled,modified,rested,book_updated,total_events
 engine,ladder_pool_engine,mostly_adds,10000000,1062249917,9413980.496,0,93.259,42,250,583,102958,19007730,4448247360,0,9007730,0,992270,0,9007730,10000000,29007730
 engine,ladder_pool_engine,many_cancels,10000000,765833709,13057664.977,0,63.163,42,84,125,26500,15048872,4321563904,0,5048872,0,4951128,0,5048872,10000000,25048872
 engine,ladder_pool_engine,market_orders,10000000,975229750,10253993.995,0,84.667,42,250,583,35083,13107680,4746173824,4951339,10000000,0,0,0,2500000,5000826,27451341

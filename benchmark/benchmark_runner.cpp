@@ -135,7 +135,7 @@ void print_human_readable(const BenchmarkResult& result) {
         result.throughput_ops_per_sec / 1'000'000.0;
 
     std::cout << "Layer: " << benchmark_layer_to_string(result.layer) << '\n';
-    std::cout << "impl: " << result.impl_name << '\n';
+    std::cout << "book_type: " << result.impl_name << '\n';
     std::cout << "workload: " << result.workload_name << '\n';
     std::cout << "ops: " << result.operations << '\n';
     std::cout << "total_ns: " << result.total_ns << '\n';
@@ -165,7 +165,7 @@ void print_human_readable(const BenchmarkResult& result) {
 void write_csv_header(std::ostream& os) {
     os
         << "layer,"
-        << "impl,"
+        << "book_type,"
         << "workload,"
         << "ops,"
         << "total_ns,"

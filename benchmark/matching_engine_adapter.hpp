@@ -79,13 +79,13 @@ private:
     std::unique_ptr<MatchingEngine<LadderPoolOrderBook>> engine_;
 };
 
-inline std::unique_ptr<IBenchmarkBook> make_benchmark_target(const std::string& impl, Price min_price, Price max_price, Price tick_size, std::size_t expected_orders) {
-    if (impl == "map") {
+inline std::unique_ptr<IBenchmarkBook> make_benchmark_target(const std::string& book_type, Price min_price, Price max_price, Price tick_size, std::size_t expected_orders) {
+    if (book_type == "map") {
         auto book = std::make_unique<MapMatchingEngineAdapter>(expected_orders);
         return book;
     }
 
-    if (impl == "ladder_pool") {
+    if (book_type == "ladder_pool") {
         auto book = std::make_unique<LadderPoolMatchingEngineAdapter>(
             min_price,
             max_price,
@@ -97,5 +97,5 @@ inline std::unique_ptr<IBenchmarkBook> make_benchmark_target(const std::string& 
         return book;
     }
 
-    throw std::invalid_argument("unknown implementation: " + impl);
+    throw std::invalid_argument("unknown implementation: " + book_type);
 }

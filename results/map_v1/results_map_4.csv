@@ -1,4 +1,4 @@
-impl,workload,ops,total_ns,throughput_ops_sec,min_ns,mean_ns,p50_ns,p90_ns,p99_ns,max_ns,alloc_count,alloc_bytes,trades,accepted,rejected,cancelled,modified,rested
+book_type,workload,ops,total_ns,throughput_ops_sec,min_ns,mean_ns,p50_ns,p90_ns,p99_ns,max_ns,alloc_count,alloc_bytes,trades,accepted,rejected,cancelled,modified,rested
 map,mostly_adds,10000000,1632505042,6125555.354,0,149.782,83,292,750,86716666,37025466,3012735576,0,9007730,0,992270,0,9007730
 map,many_cancels,10000000,1246217333,8024282.551,0,111.627,125,125,208,395000,25242208,1860256200,0,5048872,0,4951128,0,5048872
 map,market_orders,10000000,1251321000,7991554.525,0,112.319,42,292,667,18114792,26808351,2755522256,4951339,10000000,0,0,0,2500000

@@ -259,7 +259,7 @@ Run one workload:
 
 ```bash
 ./build/exchange_benchmark \
-  --impl map \
+  --book_type map \
   --workload mostly_adds \
   --orders 10000000 \
   --seed 1
@@ -269,7 +269,7 @@ Run all workloads for the map implementation:
 
 ```bash
 ./build/exchange_benchmark \
-  --impl map \
+  --book_type map \
   --all-workloads \
   --orders 10000000 \
   --seed 1 \
@@ -280,7 +280,7 @@ Run all workloads for the ladder-pool implementation:
 
 ```bash
 ./build/exchange_benchmark \
-  --impl ladder_pool \
+  --book_type ladder_pool \
   --all-workloads \
   --orders 10000000 \
   --seed 1 \

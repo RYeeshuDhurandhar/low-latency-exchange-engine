@@ -6,20 +6,20 @@
 
 inline std::unique_ptr<IBenchmarkBook> make_benchmark_target(
     BenchmarkLayer layer,
-    const std::string& impl,
+    const std::string& book_type,
     Price min_price,
     Price max_price,
     Price tick_size,
     std::size_t expected_orders
 ) {
     if (layer == BenchmarkLayer::Book) {
-        if (impl == "map") {
+        if (book_type == "map") {
             return std::make_unique<MapOrderBookAdapter>(
                 expected_orders
             );
         }
 
-        if (impl == "ladder_pool") {
+        if (book_type == "ladder_pool") {
             return std::make_unique<LadderPoolOrderBookAdapter>(
                 min_price,
                 max_price,
@@ -30,13 +30,13 @@ inline std::unique_ptr<IBenchmarkBook> make_benchmark_target(
     }
 
     if (layer == BenchmarkLayer::Engine) {
-        if (impl == "map") {
+        if (book_type == "map") {
             return std::make_unique<MapMatchingEngineAdapter>(
                 expected_orders
             );
         }
 
-        if (impl == "ladder_pool") {
+        if (book_type == "ladder_pool") {
             return std::make_unique<LadderPoolMatchingEngineAdapter>(
                 min_price,
                 max_price,
